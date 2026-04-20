@@ -1,0 +1,470 @@
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
+:root {
+  font-family: 'Share Tech Mono', 'Courier New', monospace;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: #000;
+  color: #00ffff;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+#app {
+  position: relative;
+  min-height: 100vh;
+  width: 100vw;
+}
+
+/* ── Game canvas layer ────────────────────────────────────────────── */
+.game-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+}
+
+.game-layer canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* ── HUD ──────────────────────────────────────────────────────────── */
+.hud {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 300ms ease;
+  z-index: 10;
+}
+
+.hud.is-active {
+  opacity: 1;
+}
+
+/* Timer */
+.hud-timer {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 14px;
+  color: #ffffff;
+  letter-spacing: 0.1em;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid #444;
+  padding: 4px 10px;
+}
+
+.hud-timer.is-escaping {
+  color: #ff0000;
+  border-color: #ff0000;
+  animation: blink-red 0.5s steps(1) infinite;
+}
+
+/* Speed indicator */
+.hud-speed {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 14px;
+  color: rgba(255,255,255,0.92);
+  letter-spacing: 0.1em;
+  background: rgba(0, 0, 0, 0.68);
+  border: 1px solid rgba(0, 255, 255, 0.35);
+  padding: 4px 10px;
+}
+
+/* Personal best */
+.hud-best {
+  position: absolute;
+  bottom: 1rem;
+  right: 1rem;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 12px;
+  color: rgba(255,255,255,0.27);
+  letter-spacing: 0.1em;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid #1a1a1a;
+  padding: 3px 8px;
+}
+
+.flight-tip {
+  position: absolute;
+  left: 50%;
+  bottom: 1.25rem;
+  transform: translateX(-50%);
+  min-width: min(38rem, calc(100vw - 2rem));
+  max-width: calc(100vw - 2rem);
+  padding: 0.55rem 0.85rem;
+  border: 1px solid rgba(0, 255, 255, 0.38);
+  background: rgba(0, 8, 12, 0.82);
+  color: rgba(230, 255, 255, 0.94);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: clamp(0.68rem, 1.8vw, 0.82rem);
+  letter-spacing: 0.12em;
+  text-align: center;
+  opacity: 0;
+  transition: opacity 180ms ease;
+}
+
+.flight-tip.is-visible {
+  opacity: 1;
+}
+
+.flight-tip[data-mode="danger"] {
+  border-color: rgba(255, 72, 72, 0.95);
+  background: rgba(28, 0, 0, 0.88);
+  color: rgba(255, 228, 228, 0.96);
+  text-shadow: 0 0 14px rgba(255, 82, 82, 0.5);
+  box-shadow: 0 0 18px rgba(255, 48, 48, 0.22);
+  animation: banner-alert 0.55s steps(1) 3;
+}
+
+/* ── AI Text Box ──────────────────────────────────────────────────── */
+.ai-text-box {
+  --ai-color: #00ffff;
+  position: absolute;
+  top: 1.25rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(700px, 80vw);
+  padding: 12px 16px;
+  border: 1px solid var(--ai-color);
+  background: rgba(0, 0, 0, 0.8);
+  font-family: 'Share Tech Mono', 'Courier New', monospace;
+  font-size: 16px;
+  color: var(--ai-color);
+  letter-spacing: 2px;
+  line-height: 1.5;
+  opacity: 0;
+  transition: opacity 0.3s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.ai-text-box.is-visible {
+  opacity: 1;
+}
+
+.ai-prefix {
+  color: #006666;
+  margin-right: 4px;
+}
+
+/* State-specific border colors set inline via JS */
+.ai-text-box[data-state="aggressive"] {
+  box-shadow: 0 0 20px rgba(255, 0, 0, 0.25);
+}
+.ai-text-box[data-state="panicking"] {
+  animation: flicker 0.3s steps(1) infinite;
+}
+.ai-text-box[data-state="broken"] {
+  animation: flicker 0.15s steps(1) infinite;
+}
+
+.is-shaking {
+  animation: ai-shake 80ms linear infinite !important;
+}
+
+.is-shake-burst {
+  animation: ai-shake 80ms linear 3 !important;
+}
+
+/* ── Vignette overlay ─────────────────────────────────────────────── */
+.vignette-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 50%, rgba(255,0,0,0) 80%);
+  transition: background 0.5s ease;
+  z-index: 5;
+}
+.vignette-overlay.is-red {
+  background: radial-gradient(ellipse at center, transparent 40%, rgba(255,0,0,0.35) 100%);
+}
+
+/* ── Chaos text overlay (BROKEN state) ───────────────────────────── */
+.chaos-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  font-family: 'Share Tech Mono', monospace;
+  color: rgba(255, 100, 140, 0.7);
+  font-size: clamp(1rem, 3vw, 2rem);
+  text-shadow: -3px 0 rgba(0, 255, 255, 0.5), 3px 0 rgba(255, 0, 100, 0.5);
+  letter-spacing: 0.2em;
+  overflow: hidden;
+  z-index: 8;
+  display: none;
+}
+.chaos-overlay.is-active {
+  display: block;
+}
+.chaos-word {
+  position: absolute;
+  animation: chaos-drift 200ms linear infinite;
+}
+
+/* ── Crash overlay ────────────────────────────────────────────────── */
+.crash-overlay {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 0, 20, 0.06);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 80ms linear;
+  z-index: 20;
+}
+
+.crash-overlay.is-visible {
+  opacity: 1;
+}
+
+.crash-text {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: clamp(1.4rem, 4vw, 2.5rem);
+  color: #ffd2d8;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  text-align: center;
+  padding: 1rem 2rem;
+  border: 1px solid rgba(255, 0, 40, 0.4);
+  background: rgba(0, 0, 0, 0.9);
+  text-shadow: 0 0 20px rgba(255, 50, 80, 0.5);
+  max-width: 80vw;
+}
+
+/* ── Screen shatter canvas ────────────────────────────────────────── */
+.shatter-canvas {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 30;
+  transition: opacity 80ms ease;
+}
+
+.shatter-canvas.is-visible {
+  opacity: 1;
+}
+
+/* ── White flash ──────────────────────────────────────────────────── */
+.white-flash {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  background: #ffffff;
+  transition: opacity 300ms ease;
+  z-index: 40;
+}
+
+.white-flash.is-visible {
+  opacity: 1;
+}
+
+/* ── Intro Screen ─────────────────────────────────────────────────── */
+.intro-screen {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 1.5rem;
+  background: #000;
+  z-index: 50;
+  opacity: 1;
+  transition: opacity 500ms ease;
+}
+
+.intro-screen.is-fading {
+  opacity: 0;
+}
+
+.intro-screen.is-hidden {
+  display: none;
+}
+
+.logo-mark {
+  width: min(180px, 40vw);
+  height: auto;
+  display: block;
+  filter: drop-shadow(0 0 16px rgba(0, 255, 255, 0.7));
+}
+
+.game-title {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: clamp(2.5rem, 7vw, 3.5rem);
+  letter-spacing: 0.24em;
+  color: #00ffff;
+  text-shadow: 0 0 20px #00ffff, 0 0 60px rgba(0, 255, 255, 0.4);
+  margin: 0;
+}
+
+.game-subtitle {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: clamp(0.75rem, 2vw, 1rem);
+  letter-spacing: 6px;
+  color: #006666;
+  margin-top: -0.8rem;
+}
+
+.intro-label {
+  min-height: 2.2em;
+  width: min(700px, 90vw);
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #005a62;
+  background: rgba(0, 20, 24, 0.4);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 14px;
+  color: #00e6f2;
+  letter-spacing: 0.04em;
+  text-shadow: 0 0 8px rgba(0, 255, 255, 0.35);
+  position: relative;
+}
+
+.intro-label.is-typing::after {
+  content: '';
+  display: inline-block;
+  width: 0.6ch;
+  height: 1em;
+  margin-left: 2px;
+  background: #00ffff;
+  vertical-align: -0.1em;
+  animation: terminal-cursor 0.8s steps(1) infinite;
+}
+
+.intro-form {
+  width: min(380px, 90vw);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.intro-input,
+.intro-button {
+  width: 100%;
+  font-family: 'Share Tech Mono', 'Courier New', monospace;
+  font-size: 14px;
+  border: 1px solid #00b7c6;
+  border-radius: 0;
+  background: #000;
+  color: #00f1ff;
+  letter-spacing: 0.08em;
+}
+
+.intro-input {
+  padding: 0.75rem 0.9rem;
+  caret-color: #00ffff;
+}
+
+.intro-input::placeholder {
+  color: #004a53;
+}
+
+.intro-input:focus {
+  outline: none;
+  border-color: #00ffff;
+  box-shadow: 0 0 10px rgba(0, 255, 255, 0.2);
+}
+
+.intro-button {
+  padding: 0.8rem 0.9rem;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.intro-button:hover {
+  background: #00ffff;
+  color: #001417;
+  border-color: #00ffff;
+}
+
+.skip-note {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.7rem;
+  color: #004a53;
+  letter-spacing: 0.08em;
+  margin-top: -0.5rem;
+}
+
+.creator-credit {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.8rem;
+  color: #00cccc;
+  letter-spacing: 0.05em;
+  margin-top: 2rem;
+  opacity: 1;
+  transition: all 0.3s ease;
+}
+
+.creator-credit:hover {
+  color: #00ffff;
+}
+
+.creator-credit a {
+  color: #00ffff;
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: all 0.3s ease;
+}
+
+.creator-credit a:hover {
+  color: #ffffff;
+  border-bottom-color: #ffffff;
+}
+
+/* ── Keyframe animations ──────────────────────────────────────────── */
+@keyframes terminal-cursor {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+@keyframes blink-red {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+@keyframes banner-alert {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+@keyframes ai-shake {
+  0%   { transform: translateX(-50%) translateX(0); }
+  20%  { transform: translateX(-50%) translateX(-4px); }
+  40%  { transform: translateX(-50%) translateX(4px); }
+  60%  { transform: translateX(-50%) translateX(-3px); }
+  80%  { transform: translateX(-50%) translateX(3px); }
+  100% { transform: translateX(-50%) translateX(0); }
+}
+
+@keyframes chaos-drift {
+  0%   { transform: translate(0, 0); }
+  25%  { transform: translate(3px, -2px); }
+  50%  { transform: translate(-4px, 1px); }
+  75%  { transform: translate(2px, 3px); }
+  100% { transform: translate(0, 0); }
+}
+
+@keyframes flicker {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
