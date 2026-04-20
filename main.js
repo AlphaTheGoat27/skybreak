@@ -188,9 +188,13 @@ function startRunFromIntro() {
 
   // Webring portal passthrough
   const urlParams = new URLSearchParams(window.location.search);
+  let isComingFromPortal = false;
+  let referrerUrl = null;
   if (urlParams.get("portal") === "true" && urlParams.get("username")) {
     PLAYER_NAME = urlParams.get("username");
     localStorage.setItem(PLAYER_NAME_STORAGE_KEY, PLAYER_NAME);
+    isComingFromPortal = true;
+    referrerUrl = urlParams.get("ref");
   }
 
   if (!aiTroll) aiTroll = new AITroll(aiTextBox, aiMessage, PLAYER_NAME);
@@ -198,7 +202,7 @@ function startRunFromIntro() {
 
   try {
     if (!threeApp) { threeApp = createThreeApp(gameLayer); threeApp.start(); }
-    threeApp.beginRun();
+    threeApp.beginRun({ isComingFromPortal, referrerUrl });
     hasRunStarted = true;
     hud.classList.add("is-active");
     introInput.blur();
@@ -376,6 +380,12 @@ function createThreeApp(container) {
     obstacleTargetX = 0; obstacleTargetY = 0; targetShiftTimer = 0;
     deactivateAllObstacles(ringPool, wallPool, corridorPool);
     portalSystem.group.visible = false; portalSystem.spawned = false; portalSystem.group.position.set(0, 0, -99999);
+    if (portalSystem.startPortal) {
+      portalSystem.startPortal.visible = false;
+      if (portalSystem.startPortal.group) {
+        portalSystem.startPortal.group.visible = false;
+      }
+    }
     chaosOverlay.innerHTML = ""; chaosOverlay.classList.remove("is-active");
     vignetteOverlay.classList.remove("is-red");
     whiteFlash.classList.remove("is-visible");
@@ -539,6 +549,26 @@ function createThreeApp(container) {
       if (pdz < 10 && Math.sqrt(pdx * pdx + pdy * pdy) < 15) triggerWin();
     }
 
+    // Start portal collision (return to previous game)
+    if (portalSystem.startPortal && portalSystem.startPortal.visible) {
+      const sdz = Math.abs(shipAnchor.position.z - portalSystem.startPortal.group.position.z);
+      const sdx = shipAnchor.position.x - portalSystem.startPortal.group.position.x;
+      const sdy = shipAnchor.position.y - portalSystem.startPortal.group.position.y;
+      if (sdz < 10 && Math.sqrt(sdx * sdx + sdy * sdy) < 15) {
+        // Return to previous game with all parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        const returnParams = new URLSearchParams({
+          username: urlParams.get('username') || PLAYER_NAME || 'anonymous',
+          speed: Math.round(getGameSpeed(runSeconds)).toString(),
+          ref: window.location.origin,
+          hp: '100',
+          color: urlParams.get('color') || '#00ffff',
+          portal: 'true'
+        });
+        window.location.href = `${portalSystem.startPortal.referrerUrl}?${returnParams.toString()}`;
+      }
+    }
+
     if (aiDirector.isFragmentLight()) { camera.position.x += (Math.random() - 0.5) * 0.8; camera.position.y += (Math.random() - 0.5) * 0.8; }
 
     audioSystem.update(runSeconds, slowMoTimer > 0);
@@ -587,11 +617,16 @@ function createThreeApp(container) {
       window.addEventListener("touchend", onTouchEnd);
       requestAnimationFrame(tick);
     },
-    beginRun() {
+    beginRun(options = {}) {
       resetRunState();
       isRunActive = true;
       prevTimestamp = 0;
       audioSystem.start();
+      
+      // Handle start portal for webring traffic
+      if (options.isComingFromPortal && options.referrerUrl) {
+        createStartPortal(portalSystem, options.referrerUrl);
+      }
     },
   };
 }
