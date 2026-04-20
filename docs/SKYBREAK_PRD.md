@@ -116,7 +116,7 @@ FIRST AI LINE (immediately after fade-in, t=0s):
 | ----------- | -------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
 | **00s–15s** | **Mockery**    | Smug, dismissive             | Spawn at 50 m/s. Basic ring obstacles. AI text box appears. Ghost ships spawn alongside player.                          |
 | **15s–35s** | **Suspicion**  | Passive-aggressive, paranoid | Speed → 80 m/s. Wall Gap obstacles added. First AI glitch events trigger. Ghost #1 "deleted" at 30s.                     |
-| **35s–50s** | **Aggression** | Hostile, frantic             | Speed → 110 m/s. Tunnel narrows. Spiral obstacles. Multiple AI events stack. Ghost #2–3 deleted. AI text box shakes red. |
+| **35s–50s** | **Aggression** | Hostile, frantic             | Speed → 110 m/s. Tunnel narrows. Ring and wall obstacles. Multiple AI events stack. Ghost #2–3 deleted. AI text box shakes red. |
 | **50s–55s** | **The Twist**  | Panic begins                 | Insults STOP. Tone shifts to fear. "Wait... this wasn't supposed to happen." Screen distortion ramps up.                 |
 | **55s–60s** | **Collapse**   | Full breakdown               | AI messages overlap and glitch. "WAIT. WAIT. WAIT." Slow-mo activates. Portal visible.                                   |
 | **60s**     | **Escape**     | Final message                | Player hits portal. Screen shatters. AI: _"Wait, take me with—"_ Redirect to webring.                                    |
@@ -291,19 +291,22 @@ OBSTACLE TYPES:
    - Gap width: 8 units (tight but passable)
    - Material: MeshBasicMaterial, color=0xff4400
 
-3. SPIRAL
-   - 6–8 rings arranged in a helix pattern over 40 units of Z depth
-   - Each ring rotated 30° more than the last
-   - Used as the "Optimize Path" AI event obstacle set
+3. CORRIDOR (OPTIMIZE_PATH event only)
+   - Four wall panels with centered gap
+   - Gap size: 13x13 units (generous and fair)
+   - Glowing cyan indicator shows safe path
+   - Used only during OPTIMIZE_PATH event at t=47s
 
 POOLING RULES:
-  - Maintain pool of 30 obstacles (10 per type)
+  - Maintain pool of 24 obstacles (12 rings, 12 walls, 6 corridors)
   - On passing obstacle (player Z > obstacle Z + 5): deactivate and return to pool
   - Never destroy/create geometry at runtime
 
 VISUAL LANGUAGE:
-  - All obstacles: emissive material, no shadows, neon colors (red/orange)
-  - Add subtle rotation animation to rings (0.5 rad/s)
+  - Rings: emissive red material with rotation animation
+  - Walls: emissive orange material, static
+  - Corridors: emissive green material with glowing indicators
+  - No shadows, neon cyberpunk aesthetic
 ```
 
 ### 5.4 AITroll System `[AI AGENT]`
@@ -554,9 +557,9 @@ EVENTS (schedule):
     - Camera shake: random offset ±0.5 units at 15Hz for 3s
 
   t=47s: OPTIMIZE_PATH
-    - AITroll: "I'm bored. Try this."
-    - Force-spawn a Spiral obstacle set immediately ahead of player
-    - Density jumps to 1.0 for 5 seconds then returns to normal
+    - AITroll: "I rewrote the path. Good luck."
+    - Force-spawn corridor obstacles with wide gaps and glowing indicators
+    - Fair navigable challenge that tests precision
 
   t=50s: NARRATIVE_SHIFT
     - AITroll switches to PANICKING state

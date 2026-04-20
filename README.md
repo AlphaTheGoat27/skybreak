@@ -40,7 +40,7 @@ The AI turns hostile, actively sabotaging you with:
 - **Inverted Controls** - Left becomes right, up becomes down
 - **Space Compression** - Tunnel narrows dramatically  
 - **Fragment Light** - Visual distortion and camera shake
-- **Optimized Paths** - Extra spiral obstacles spawn
+- **Optimized Paths** - Fair corridor challenge with glowing indicators
 
 ### **50-55s: The Twist**
 The insults stop. Fear sets in.  
@@ -85,18 +85,20 @@ Then escape to the **Vibe Jam 2026 Webring**.
 ### **Progressive Difficulty**
 - **Speed:** 50 m/s (start) - 110 m/s (end)
 - **Obstacle Density:** 0.2 - 0.9
-- **Three obstacle types:** Rings, wall gaps, spirals
+- **Three obstacle types:** Rings, wall gaps, corridors
 - **AI Events** trigger at specific timestamps
 
 ### **Near-Miss System**
 - **Slow-motion reward** for close calls
 - **AI anger increases** with successful dodges
 - **Streak counter** tracks consecutive near-misses
+- **Generous hitbox** - 35% smaller than visual for fair gameplay
 
 ### **Ghost System**
 - **Other players** appear as ghost ships
 - **AI "deletes" them** to intimidate you
 - **Names pulled** from curated tech culture pool
+- **Sinusoidal movement** patterns for realistic dodging illusion
 
 ---
 

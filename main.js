@@ -268,10 +268,9 @@ function createThreeApp(container) {
   // ── Obstacles ─────────────────────────────────────────────────────────────
   const ringPool = createRingPool(scene, 12);
   const wallPool = createWallPool(scene, 12);
-  const spiralPool = createSpiralPool(scene, 8);
   const corridorPool = createCorridorPool(scene, 6); // for OPTIMIZE_PATH event
 
-  deactivateAllObstacles(ringPool, wallPool, spiralPool, corridorPool);
+  deactivateAllObstacles(ringPool, wallPool, corridorPool);
 
   const obstacleSpawnState = { nextSpawnZ: -80, rng: mulberry32(Date.now() & 0xffffffff) };
 
@@ -375,7 +374,7 @@ function createThreeApp(container) {
     obstacleSpawnState.nextSpawnZ = -80;
     obstacleSpawnState.rng = mulberry32(Date.now() & 0xffffffff);
     obstacleTargetX = 0; obstacleTargetY = 0; targetShiftTimer = 0;
-    deactivateAllObstacles(ringPool, wallPool, spiralPool, corridorPool);
+    deactivateAllObstacles(ringPool, wallPool, corridorPool);
     portalSystem.group.visible = false; portalSystem.spawned = false; portalSystem.group.position.set(0, 0, -99999);
     chaosOverlay.innerHTML = ""; chaosOverlay.classList.remove("is-active");
     vignetteOverlay.classList.remove("is-red");
@@ -502,8 +501,8 @@ function createThreeApp(container) {
 
     // ── Obstacles ─────────────────────────────────────────────────────────
     const density = getObstacleDensity(runSeconds);
-    spawnAndRecycleObstacles(ringPool, wallPool, spiralPool, corridorPool, shipAnchor.position.z, density, obstacleSpawnState, runSeconds, obstacleTargetX, obstacleTargetY);
-    updateObstacleAnimations(ringPool, wallPool, spiralPool, runSeconds);
+    spawnAndRecycleObstacles(ringPool, wallPool, corridorPool, shipAnchor.position.z, density, obstacleSpawnState, runSeconds, obstacleTargetX, obstacleTargetY);
+    updateObstacleAnimations(ringPool, wallPool, runSeconds);
 
     // ── Ghost system ──────────────────────────────────────────────────────
     ghostSystem.update(shipAnchor.position.z, runSeconds, delta, aiTroll, ghostDeletionTimes, ghostDeletionFired);
@@ -520,7 +519,7 @@ function createThreeApp(container) {
 
     // ── Collision ─────────────────────────────────────────────────────────
     if (!endSequenceStarted) {
-      const hz = detectHazards(playerAABB, nearMissAABB, obstacleAABB, shipAnchor, ringPool, wallPool, spiralPool, corridorPool);
+      const hz = detectHazards(playerAABB, nearMissAABB, obstacleAABB, shipAnchor, ringPool, wallPool, corridorPool);
       const nowMs = performance.now();
       if (hz.collided && nowMs - lastCollisionMs > 500) {
         lastCollisionMs = nowMs;
@@ -705,25 +704,6 @@ function createWallPool(scene, count) {
   return pool;
 }
 
-function createSpiralPool(scene, count) {
-  const pool = [];
-  const mat = new THREE.MeshBasicMaterial({ color: 0xff00ff, transparent: true, opacity: 0.9 });
-  for (let i = 0; i < count; i++) {
-    const group = new THREE.Group();
-    group.position.z = 99999;
-    for (let r = 0; r < 7; r++) {
-      const ring = new THREE.Mesh(new THREE.TorusGeometry(12, 1, 6, 10, Math.PI * 1.5), mat);
-      ring.rotation.z = (r / 7) * Math.PI * 2;
-      ring.position.z = -r * 6;
-      group.add(ring);
-    }
-    group.visible = false;
-    scene.add(group);
-    pool.push({ group, type: "spiral", active: false });
-  }
-  return pool;
-}
-
 // OPTIMIZE_PATH event: a fair tight corridor the player can read and navigate
 function createCorridorPool(scene, count) {
   const pool = [];
@@ -743,10 +723,9 @@ function createCorridorPool(scene, count) {
   return pool;
 }
 
-function deactivateAllObstacles(ringPool, wallPool, spiralPool, corridorPool) {
+function deactivateAllObstacles(ringPool, wallPool, corridorPool) {
   for (const o of ringPool) { o.group.visible = false; o.active = false; o.group.position.z = 99999; }
   for (const o of wallPool) { o.group.visible = false; o.active = false; o.group.position.z = 99999; }
-  for (const o of spiralPool) { o.group.visible = false; o.active = false; o.group.position.z = 99999; }
   for (const o of corridorPool) { o.group.visible = false; o.active = false; o.group.position.z = 99999; }
 }
 
@@ -775,13 +754,12 @@ function layoutCorridor(o, gapX, gapY) {
   o.indicator.position.set(gapX, gapY, 0);
 }
 
-function spawnAndRecycleObstacles(ringPool, wallPool, spiralPool, corridorPool, playerZ, density, state, t, targetX, targetY) {
+function spawnAndRecycleObstacles(ringPool, wallPool, corridorPool, playerZ, density, state, t, targetX, targetY) {
   const SPAWN_DISTANCE = 200, RECYCLE_BEHIND = 20;
   const gapCfg = getGapConfig(t);
 
   for (const o of ringPool) { if (o.active && o.group.position.z > playerZ + RECYCLE_BEHIND) { o.group.visible = false; o.active = false; } }
   for (const o of wallPool) { if (o.active && o.group.position.z > playerZ + RECYCLE_BEHIND) { o.group.visible = false; o.active = false; } }
-  for (const o of spiralPool) { if (o.active && o.group.position.z > playerZ + RECYCLE_BEHIND) { o.group.visible = false; o.active = false; } }
   for (const o of corridorPool) { if (o.active && o.group.position.z > playerZ + RECYCLE_BEHIND) { o.group.visible = false; o.active = false; } }
 
   while (state.nextSpawnZ > playerZ - SPAWN_DISTANCE) {
@@ -791,19 +769,27 @@ function spawnAndRecycleObstacles(ringPool, wallPool, spiralPool, corridorPool, 
     if (t >= 10 && state.rng() > density) { state.nextSpawnZ -= getSpawnInterval(t); continue; }
 
     let type;
+    const forceCenter = roll < 0.2; // 20% chance for center obstacles from start
     if (t < 15) type = "ring";
     else if (t < 35) type = roll < 0.55 ? "ring" : "wall";
-    else type = roll < 0.35 ? "ring" : (roll < 0.65 ? "wall" : "spiral");
+    else type = roll < 0.5 ? "ring" : "wall";
 
     if (type === "ring") {
       const free = ringPool.find(o => !o.active);
       if (free) {
         free.gapIndex = Math.floor(state.rng() * free.segments.length);
         free.gapSize = gapCfg.ringGapSegments;
-        // Rotate the ring so the gap is near targetX/Y direction
-        const gapAngle = Math.atan2(targetY, targetX);
-        free.group.rotation.z = gapAngle;
-        free.group.position.set(targetX * 0.7, targetY * 0.7, spawnZ);
+        // Rotate the ring - if centered, rotate randomly to block middle
+        if (forceCenter) {
+          free.group.rotation.z = state.rng() * Math.PI * 2; // Random rotation for center obstacles
+        } else {
+          const gapAngle = Math.atan2(targetY, targetX);
+          free.group.rotation.z = gapAngle;
+        }
+        // Position ring - sometimes force to center
+        const posX = forceCenter ? 0 : targetX * 0.7;
+        const posY = forceCenter ? 0 : targetY * 0.7;
+        free.group.position.set(posX, posY, spawnZ);
         free.rotationSpeed = 0.2 + state.rng() * 0.2;
         free.segments.forEach((seg, idx) => {
           const rel = (idx - free.gapIndex + free.segments.length) % free.segments.length;
@@ -815,19 +801,14 @@ function spawnAndRecycleObstacles(ringPool, wallPool, spiralPool, corridorPool, 
       const free = wallPool.find(o => !o.active);
       if (free) {
         const gapHalfY = gapCfg.wallGapHalfY, gapHalfX = gapCfg.wallGapHalfX;
-        free.top.position.set(targetX, targetY + gapHalfY + 5, 0);
-        free.bottom.position.set(targetX, targetY - gapHalfY - 5, 0);
-        free.left.position.set(targetX - gapHalfX - 4, targetY, 0);
-        free.right.position.set(targetX + gapHalfX + 4, targetY, 0);
+        // Position wall - sometimes force to center
+        const posX = forceCenter ? 0 : targetX;
+        const posY = forceCenter ? 0 : targetY;
+        free.top.position.set(posX, posY + gapHalfY + 5, 0);
+        free.bottom.position.set(posX, posY - gapHalfY - 5, 0);
+        free.left.position.set(posX - gapHalfX - 4, posY, 0);
+        free.right.position.set(posX + gapHalfX + 4, posY, 0);
         free.group.position.set(0, 0, spawnZ);
-        free.group.visible = true; free.active = true;
-      }
-    } else if (type === "spiral") {
-      const free = spiralPool.find(o => !o.active);
-      if (free) {
-        // Shift spiral off-center so player can't camp middle
-        free.group.position.set(targetX * 0.6, targetY * 0.6, spawnZ);
-        free.group.rotation.z = state.rng() * Math.PI;
         free.group.visible = true; free.active = true;
       }
     }
@@ -852,9 +833,8 @@ function getGapConfig(t) {
   return { ringGapSegments: 2, wallGapHalfX: 4.2, wallGapHalfY: 4.5 };
 }
 
-function updateObstacleAnimations(ringPool, wallPool, spiralPool, t) {
+function updateObstacleAnimations(ringPool, wallPool, t) {
   for (const o of ringPool) { if (o.active) o.group.rotation.z += o.rotationSpeed * 0.01; }
-  for (const o of spiralPool) { if (o.active) o.group.rotation.z += 0.008; }
 }
 
 // ─── OPTIMIZE_PATH event: spawn 3 fair corridors ─────────────────────────────
@@ -876,7 +856,7 @@ function forceSpawnCorridorBurst(corridorPool, playerZ) {
 }
 
 // ─── Collision ────────────────────────────────────────────────────────────────
-function detectHazards(playerAABB, nearMissAABB, obstacleAABB, ship, ringPool, wallPool, spiralPool, corridorPool) {
+function detectHazards(playerAABB, nearMissAABB, obstacleAABB, ship, ringPool, wallPool, corridorPool) {
   playerAABB.setFromCenterAndSize(ship.position, new THREE.Vector3(1.3, 1.0, 1.8));
   nearMissAABB.setFromCenterAndSize(ship.position, new THREE.Vector3(3.0, 2.5, 2.5));
   let nearMiss = false;
@@ -899,13 +879,6 @@ function detectHazards(playerAABB, nearMissAABB, obstacleAABB, ship, ringPool, w
       if (playerAABB.intersectsBox(obstacleAABB)) return { collided: true, nearMiss: false };
       if (nearMissAABB.intersectsBox(obstacleAABB)) nearMiss = true;
     }
-  }
-
-  for (const o of spiralPool) {
-    if (!o.active) continue;
-    obstacleAABB.setFromObject(o.group);
-    if (playerAABB.intersectsBox(obstacleAABB)) return { collided: true, nearMiss: false };
-    if (nearMissAABB.intersectsBox(obstacleAABB)) nearMiss = true;
   }
 
   for (const o of corridorPool) {
