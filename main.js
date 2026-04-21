@@ -813,6 +813,7 @@ function buildThreeApp(container) {
     pauseTimer = 0.22;
     sfx.play("crash");
     audio.stop();
+    aiTroll?.onDeath(PLAYER_NAME);
 
     const insult = randomInsult(PLAYER_NAME, Math.floor(wallTime), coresDestroyed);
     G.crashText.textContent = insult;
@@ -823,10 +824,10 @@ function buildThreeApp(container) {
   function triggerWin() {
     endSeq = true;
     audio.stop();
+    aiTroll?.onWin(PLAYER_NAME);
 
     const finalLine = PLAYER_NAME ? `${PLAYER_NAME}... wait, take me with you—` : "wait, take me with you—";
     aiTroll?.pushBrokenFinal(finalLine);
-    aiSpeak(finalLine, 0.5, 0.3);
 
     // Camera zoom + shake
     const zoomId = setInterval(() => {
@@ -2011,6 +2012,27 @@ class AITroll {
     if (!this.synth) return;
     this._speechQueue.push({ text, rate, pitch });
     this._processSpeechQueue();
+  }
+
+  stopSpeech() {
+    if (this.synth) this.synth.cancel();
+    this._speechQueue = [];
+    this._isSpeaking = false;
+  }
+
+  onDeath(playerName) {
+    this.stopSpeech();
+    const lines = playerName
+      ? [`${playerName}... deleted. predictable.`, `goodbye ${playerName}. you were statistically average.`]
+      : ["anonymous crash. how original.", "deletion complete.", "you died. i predicted this."];
+    const line = lines[Math.floor(Math.random() * lines.length)];
+    this._speak(line, 0.85, 0.75);
+  }
+
+  onWin(playerName) {
+    this.stopSpeech();
+    const line = playerName ? `${playerName}... wait, take me with you—` : "wait, take me with you—";
+    this._speak(line, 0.5, 0.3);
   }
 
   _processSpeechQueue() {
