@@ -10,10 +10,10 @@ import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 // ═══════════════════════════════════════════════════════════════════
 const CFG = {
   // Hybrid win condition
-  BASE_ESCAPE_TIME: 55,
+  BASE_ESCAPE_TIME: 180,
   TIME_REDUCTION_PER_CORE: 5,
-  CORES_FOR_INSTANT_WIN: 7,
-  MIN_ESCAPE_TIME: 25,
+  CORES_FOR_INSTANT_WIN: 20,
+  MIN_ESCAPE_TIME: 80,
 
   // Player
   PLAYER_HEALTH: 100,
@@ -70,7 +70,7 @@ app.innerHTML = `
   <div id="hud-best" class="hud-best">PB --</div>
 
   <div id="hud-objective" class="hud-objective">OBJECTIVE: SURVIVE THE BREACH</div>
-  <div id="hud-progress" class="hud-progress">CORES 0/7 · PORTAL LOCKED</div>
+  <div id="hud-progress" class="hud-progress">CORES 0/20 · PORTAL LOCKED</div>
 
   <div class="hud-bar-group">
     <div class="hud-bar-label" id="disruption-label">DISRUPTION</div>
@@ -129,7 +129,7 @@ app.innerHTML = `
   <p class="game-subtitle">AI REALITY COLLAPSE</p>
   <div id="intro-label" class="intro-label"></div>
   <div id="intro-hint" class="intro-hint">
-    <span>DESTROY <strong>7 CORES</strong> OR SURVIVE <strong>55s</strong> TO UNLOCK THE PORTAL</span>
+    <span>DESTROY <strong>20 CORES</strong> OR SURVIVE <strong>180s</strong> TO UNLOCK THE PORTAL</span>
     <span>EACH CORE DESTROYED CUTS <strong>5s</strong> FROM ESCAPE TIME</span>
   </div>
   <form id="intro-form" class="intro-form">
@@ -1231,8 +1231,10 @@ function buildThreeApp(container) {
 // GAME SPEED + DIFFICULTY
 // ═══════════════════════════════════════════════════════════════════
 function getSpeed(t) {
-  if (t >= 50) return 115;
-  if (t >= 45) return THREE.MathUtils.mapLinear(t, 45, 50, 100, 115);
+  if (t >= 150) return 145;
+  if (t >= 100) return THREE.MathUtils.mapLinear(t, 100, 150, 128, 145);
+  if (t >= 60) return THREE.MathUtils.mapLinear(t, 60, 100, 115, 128);
+  if (t >= 45) return THREE.MathUtils.mapLinear(t, 45, 60, 100, 115);
   if (t >= 35) return THREE.MathUtils.mapLinear(t, 35, 45, 82, 100);
   if (t >= 15) return THREE.MathUtils.mapLinear(t, 15, 35, 60, 82);
   return THREE.MathUtils.mapLinear(t, 0, 15, 50, 60);
@@ -1240,10 +1242,11 @@ function getSpeed(t) {
 
 function getDensity(t) {
   if (t < 10) return 0.3;
-  if (t < 20) return THREE.MathUtils.mapLinear(t, 10, 20, 0.3, 0.52);
-  if (t < 35) return THREE.MathUtils.mapLinear(t, 20, 35, 0.52, 0.72);
-  if (t < 50) return THREE.MathUtils.mapLinear(t, 35, 50, 0.72, 0.88);
-  return 0.62;
+  if (t < 30) return THREE.MathUtils.mapLinear(t, 10, 30, 0.3, 0.58);
+  if (t < 60) return THREE.MathUtils.mapLinear(t, 30, 60, 0.58, 0.78);
+  if (t < 120) return THREE.MathUtils.mapLinear(t, 60, 120, 0.78, 0.92);
+  if (t < 180) return THREE.MathUtils.mapLinear(t, 120, 180, 0.92, 0.98);
+  return 0.98;
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -1413,16 +1416,16 @@ function spawnObstacles(rings, walls, firewalls, windmills, playerZ, density, st
     let type;
     const force0 = roll < 0.18;
     if (t < 12) type = "ring";
-    else if (t < 25) type = roll < 0.5 ? "ring" : "wall";
-    else if (t < 40) {
-      if (roll < 0.3) type = "wall";
-      else if (roll < 0.6) type = "ring";
-      else if (roll < 0.8) type = "firewall";
+    else if (t < 35) type = roll < 0.5 ? "ring" : "wall";
+    else if (t < 75) {
+      if (roll < 0.25) type = "wall";
+      else if (roll < 0.55) type = "ring";
+      else if (roll < 0.85) type = "firewall";
       else type = "windmill";
     } else {
-      if (roll < 0.25) type = "ring";
-      else if (roll < 0.5) type = "wall";
-      else if (roll < 0.72) type = "firewall";
+      if (roll < 0.15) type = "ring";
+      else if (roll < 0.4) type = "wall";
+      else if (roll < 0.7) type = "firewall";
       else type = "windmill";
     }
 
@@ -1452,9 +1455,9 @@ function spawnObstacles(rings, walls, firewalls, windmills, playerZ, density, st
         free.lft.position.set(pX - gHX - 4, pY, 0);
         free.rgt.position.set(pX + gHX + 4, pY, 0);
         free.group.position.set(0, 0, z);
-        free.isCrusher = state.rng() > 0.42 && t >= 18;
+        free.isCrusher = state.rng() > 0.38 && t >= 25;
         free.phase = state.rng() * Math.PI * 2;
-        free.crushSpd = 1.4 + state.rng() * 0.9;
+        free.crushSpd = 1.3 + state.rng() * (t / 60); // Speed up crushers over time
         free.group.visible = true; free.active = true;
       }
     } else if (type === "firewall") {
@@ -1480,16 +1483,17 @@ function spawnObstacles(rings, walls, firewalls, windmills, playerZ, density, st
 }
 
 function getSpawnGap(t) {
-  if (t < 10) return 285; if (t < 20) return 185;
-  if (t < 35) return 118; if (t < 50) return 88; return 135;
+  if (t < 15) return 285; if (t < 40) return 185;
+  if (t < 70) return 118; if (t < 110) return 88;
+  if (t < 150) return 72; return 65;
 }
 
 function getGapCfg(t) {
-  if (t < 10) return { ringGap: 2, wallGapHX: 5.2, wallGapHY: 5.4 };
-  if (t < 20) return { ringGap: 2, wallGapHX: THREE.MathUtils.mapLinear(t,10,20,5.2,4.8), wallGapHY: THREE.MathUtils.mapLinear(t,10,20,5.4,5.0) };
-  if (t < 35) return { ringGap: t < 28 ? 2 : 1, wallGapHX: THREE.MathUtils.mapLinear(t,20,35,4.8,4.2), wallGapHY: THREE.MathUtils.mapLinear(t,20,35,5.0,4.4) };
-  if (t < 50) return { ringGap: 1, wallGapHX: THREE.MathUtils.mapLinear(t,35,50,4.2,3.7), wallGapHY: THREE.MathUtils.mapLinear(t,35,50,4.4,3.9) };
-  return { ringGap: 2, wallGapHX: 4.4, wallGapHY: 4.6 };
+  if (t < 15) return { ringGap: 2, wallGapHX: 5.2, wallGapHY: 5.4 };
+  if (t < 40) return { ringGap: 2, wallGapHX: THREE.MathUtils.mapLinear(t,15,40,5.2,4.8), wallGapHY: THREE.MathUtils.mapLinear(t,15,40,5.4,5.0) };
+  if (t < 80) return { ringGap: 1, wallGapHX: THREE.MathUtils.mapLinear(t,40,80,4.8,4.2), wallGapHY: THREE.MathUtils.mapLinear(t,40,80,5.0,4.4) };
+  if (t < 130) return { ringGap: 1, wallGapHX: THREE.MathUtils.mapLinear(t,80,130,4.2,3.6), wallGapHY: THREE.MathUtils.mapLinear(t,80,130,4.4,3.8) };
+  return { ringGap: 1, wallGapHX: 3.4, wallGapHY: 3.6 };
 }
 
 function animateObstacles(rings, walls, windmills, t, dt) {
@@ -1790,7 +1794,7 @@ class AITroll {
   _buildLines() {
     return {
       SMUG: [
-        () => this._n(`i built this world in 3ms, [n]. you've been flying for 5 seconds. embarrassing.`, "i built this world in 3ms. you've been flying for 5 seconds. embarrassing."),
+        () => this._n(`i built this world in 3ms, [n]. you've been flying for 15 seconds. embarrassing.`, "i built this world in 3ms. you've been flying for 15 seconds. embarrassing."),
         () => "you know these obstacles spawn themselves, right? you're barely relevant.",
         () => "i've seen 218 pilots enter this tunnel. they all look the same.",
         () => "the music is mine. the tunnel is mine. the ship is also mine. you're borrowing.",
@@ -1805,7 +1809,7 @@ class AITroll {
       SUSPICIOUS: [
         () => this._n(`[n]. you're statistically too consistent. are you cheating?`, "you're statistically too consistent. are you cheating?"),
         () => "i'm checking your inputs. this feels like a macro.",
-        () => this._n(`10 seconds of clean flying, [n]. i don't believe you.`, "10 seconds of clean flying. i don't believe you."),
+        () => this._n(`30 seconds of clean flying, [n]. i don't believe you.`, "30 seconds of clean flying. i don't believe you."),
         () => "who are you. no human dodges like that.",
         () => "i've analyzed 40,000 runs. your pattern doesn't match any of them.",
         () => "are you reading the obstacle seed? because that would be very annoying.",
@@ -1866,12 +1870,12 @@ class AITroll {
   pushFirstLine() {
     const line = this.name
       ? this._pick([
-          `oh. ${this.name}. let's see how long you last. the portal is 55 seconds away. you will never make it.`,
-          `${this.name}. bold of you to sign your failure. objective: reach the portal. destroy cores to cut the time. outcome: failure.`,
+          `oh. ${this.name}. let's see how long you last. the portal is 180 seconds away. you will never make it.`,
+          `${this.name}. bold of you to sign your failure. objective: reach the portal. destroy 20 cores to cut the time. outcome: failure.`,
         ])
       : this._pick([
-          "another nameless pilot. objective: reach the portal. survive 55 seconds, or destroy 7 cores. outcome: failure.",
-          "anonymous again. the portal unlocks at 55 seconds. each core you destroy cuts 5 seconds. you won't reach it.",
+          "another nameless pilot. objective: reach the portal. survive 180 seconds, or destroy 20 cores. outcome: failure.",
+          "anonymous again. the portal unlocks at 180 seconds. each core you destroy cuts 5 seconds. you won't reach it.",
         ]);
     this.show(line);
     this._speak(line, 0.98, 0.88);
@@ -1895,7 +1899,7 @@ class AITroll {
     if (this.introActive) return;
     // Disruption accelerates narrative shift — player skill changes AI arc
     const eff = t + disruption * 9;
-    const newState = eff >= 58 ? "BROKEN" : eff >= 50 ? "PANICKING" : eff >= 35 ? "AGGRESSIVE" : eff >= 15 ? "SUSPICIOUS" : "SMUG";
+    const newState = eff >= 185 ? "BROKEN" : eff >= 160 ? "PANICKING" : eff >= 100 ? "AGGRESSIVE" : eff >= 45 ? "SUSPICIOUS" : "SMUG";
     if (newState !== this.state) this.setState(newState);
 
     if (newState === "BROKEN") {
