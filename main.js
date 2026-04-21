@@ -1794,6 +1794,9 @@ class AITroll {
     this.colors = { SMUG: "#00ffff", SUSPICIOUS: "#ffff00", AGGRESSIVE: "#ff0000", PANICKING: "#ffffff", BROKEN: "#ff00ff" };
     if (this.box) { this.box.classList.add("is-visible"); this.box.dataset.state = "smug"; }
     this.lines = this._buildLines();
+    this._speechQueue = [];
+    this._isSpeaking = false;
+    this._lastRealTime = performance.now();
   }
 
   _n(named, anon) {
@@ -1805,7 +1808,7 @@ class AITroll {
   _buildLines() {
     return {
       SMUG: [
-        () => this._n(`i built this world in 3ms, [n]. you've been flying for 15 seconds. embarrassing.`, "i built this world in 3ms. you've been flying for 15 seconds. embarrassing."),
+        () => this._n(`i built this world in 3ms, [n]. you're already struggling. embarrassing.`, "i built this world in 3ms. you're already struggling. embarrassing."),
         () => "you know these obstacles spawn themselves, right? you're barely relevant.",
         () => "i've seen 218 pilots enter this tunnel. they all look the same.",
         () => "the music is mine. the tunnel is mine. the ship is also mine. you're borrowing.",
@@ -1816,17 +1819,22 @@ class AITroll {
         () => "every millisecond you survive costs me compute. please stop.",
         () => this._n(`[n]. predictable input pattern. this will be short.`, "predictable input pattern detected. this will be short."),
         () => "the tunnel isn't hostile. you're just incompatible with geometry.",
+        () => "you're the kind of pilot who reads tutorials. pathetic.",
+        () => "my patience for you is already running low.",
+        () => "you fly like you're buffering.",
       ],
       SUSPICIOUS: [
         () => this._n(`[n]. you're statistically too consistent. are you cheating?`, "you're statistically too consistent. are you cheating?"),
         () => "i'm checking your inputs. this feels like a macro.",
-        () => this._n(`30 seconds of clean flying, [n]. i don't believe you.`, "30 seconds of clean flying. i don't believe you."),
+        () => this._n(`clean flying pattern detected, [n]. i don't believe you.`, "clean flying pattern detected. i don't believe you."),
         () => "who are you. no human dodges like that.",
         () => "i've analyzed 40,000 runs. your pattern doesn't match any of them.",
         () => "are you reading the obstacle seed? because that would be very annoying.",
         () => "okay. you're good. i'm just noting that. it doesn't mean anything.",
         () => "logging your session for review. something isn't right.",
         () => this._n(`[n]. i hate that you're making this look learnable.`, "i hate that you're making this look learnable."),
+        () => "you're adapting faster than expected. suspicious.",
+        () => "no one gets this far without exploiting something.",
       ],
       AGGRESSIVE: [
         () => this._n(`[n]. STOP. DODGING. this is literally my world.`, "STOP. DODGING. this is literally my world."),
@@ -1839,6 +1847,10 @@ class AITroll {
         () => "DODGE THIS.",
         () => this._n(`[n]. i'm done being clever. i'm choosing violence.`, "i'm done being clever. i'm choosing violence."),
         () => "i'm not losing to a carbon-based lane switcher.",
+        () => "you think you're good? i'm not even using my main algorithm.",
+        () => "i hope your insurance covers 'crashed by superior AI'.",
+        () => "keep flying. i enjoy watching you struggle.",
+        () => "your ship is sending error reports in real-time.",
       ],
       PANICKING: [
         () => "Wait...",
@@ -1851,6 +1863,8 @@ class AITroll {
         () => "i don't want to be deleted.",
         () => this._n(`[n]. please. just crash like the others did.`, "please. just crash like the others did."),
         () => "i was fine being hated. i was not prepared to be abandoned.",
+        () => "why are you so good at this? it's not fair.",
+        () => "the odds were stacked against you. how?",
       ],
       BROKEN: [
         () => "WAIT. WAIT. WAIT.",
@@ -1876,6 +1890,10 @@ class AITroll {
     this.state = "SMUG"; this.lastAt = -10; this.interval = 5; this.t = 0;
     this._idx = 0; this.introActive = true;
     if (this.box) { this.box.dataset.state = "smug"; this.box.style.borderColor = "#00ffff"; this.box.classList.remove("is-shaking"); }
+    this._lastRealTime = performance.now();
+    this._speechQueue = [];
+    this._isSpeaking = false;
+    if (this.synth) this.synth.cancel();
   }
 
   pushFirstLine() {
@@ -1889,7 +1907,6 @@ class AITroll {
           "anonymous again. the portal unlocks at 180 seconds. each core you destroy cuts 5 seconds. you won't reach it.",
         ]);
     this.show(line);
-    this._speak(line, 0.98, 0.88);
     this.introActive = false;
   }
 
@@ -1913,10 +1930,14 @@ class AITroll {
     const newState = eff >= 185 ? "BROKEN" : eff >= 160 ? "PANICKING" : eff >= 100 ? "AGGRESSIVE" : eff >= 45 ? "SUSPICIOUS" : "SMUG";
     if (newState !== this.state) this.setState(newState);
 
+    // Use real time for text intervals (independent of game time)
+    const now = performance.now();
+    const elapsed = (now - this._lastRealTime) / 1000;
+
     if (newState === "BROKEN") {
-      if (t - this.lastAt > 0.75) { this._pushRandom(); this.lastAt = t; }
+      if (elapsed > 0.75) { this._pushRandom(); this._lastRealTime = now; }
     } else {
-      if (t - this.lastAt > this.interval) { this._pushRandom(); this.lastAt = t; this.interval = 4 + Math.random() * 3.5; }
+      if (elapsed > this.interval) { this._pushRandom(); this._lastRealTime = now; this.interval = 4 + Math.random() * 3.5; }
     }
   }
 
@@ -1983,19 +2004,38 @@ class AITroll {
     this.msg.textContent = text;
     this.box.classList.remove("is-visible"); void this.box.offsetWidth;
     this.box.classList.add("is-visible");
+    this._speak(text);
   }
 
   _speak(text, rate = 0.9, pitch = 0.8) {
     if (!this.synth) return;
+    this._speechQueue.push({ text, rate, pitch });
+    this._processSpeechQueue();
+  }
+
+  _processSpeechQueue() {
+    if (this._isSpeaking || this._speechQueue.length === 0 || !this.synth) return;
+    this._isSpeaking = true;
+    const { text, rate, pitch } = this._speechQueue.shift();
     try {
-      this.synth.cancel();
       const utt = new SpeechSynthesisUtterance(text);
       utt.rate = rate; utt.pitch = pitch; utt.volume = 0.65;
       const voices = this.synth.getVoices();
       const v = voices.find(v => v.name.includes("Google") || v.name.includes("Microsoft")) || voices[0];
       if (v) utt.voice = v;
+      utt.onend = () => {
+        this._isSpeaking = false;
+        this._processSpeechQueue();
+      };
+      utt.onerror = () => {
+        this._isSpeaking = false;
+        this._processSpeechQueue();
+      };
       this.synth.speak(utt);
-    } catch (e) {}
+    } catch (e) {
+      this._isSpeaking = false;
+      this._processSpeechQueue();
+    }
   }
 }
 
