@@ -1216,13 +1216,13 @@ function buildThreeApp(container) {
 // GAME SPEED + DIFFICULTY
 // ═══════════════════════════════════════════════════════════════════
 function getSpeed(t) {
-  if (t >= 150) return 145;
-  if (t >= 100) return THREE.MathUtils.mapLinear(t, 100, 150, 128, 145);
-  if (t >= 60) return THREE.MathUtils.mapLinear(t, 60, 100, 115, 128);
-  if (t >= 45) return THREE.MathUtils.mapLinear(t, 45, 60, 100, 115);
-  if (t >= 35) return THREE.MathUtils.mapLinear(t, 35, 45, 82, 100);
-  if (t >= 15) return THREE.MathUtils.mapLinear(t, 15, 35, 60, 82);
-  return THREE.MathUtils.mapLinear(t, 0, 15, 50, 60);
+  if (t >= 180) return 145;
+  if (t >= 135) return THREE.MathUtils.mapLinear(t, 135, 180, 128, 145);
+  if (t >= 100) return THREE.MathUtils.mapLinear(t, 100, 135, 115, 128);
+  if (t >= 70) return THREE.MathUtils.mapLinear(t, 70, 100, 100, 115);
+  if (t >= 50) return THREE.MathUtils.mapLinear(t, 50, 70, 82, 100);
+  if (t >= 25) return THREE.MathUtils.mapLinear(t, 25, 50, 60, 82);
+  return THREE.MathUtils.mapLinear(t, 0, 25, 50, 60);
 }
 
 function getDensity(t) {
@@ -1339,15 +1339,26 @@ function buildWallPool(scene, n) {
 
 function buildFirewallPool(scene, n) {
   const pool = [];
-  const gridMat = new THREE.MeshBasicMaterial({ color: 0xff00ff, transparent: true, opacity: 0.38, wireframe: true, side: THREE.DoubleSide });
-  const coreMat = new THREE.MeshBasicMaterial({ color: 0xff00ff });
+  const segMat = new THREE.MeshBasicMaterial({ color: 0xff00ff, transparent: true, opacity: 0.55, wireframe: true });
+  const coreMat = new THREE.MeshBasicMaterial({ color: 0xff00ff, transparent: true, opacity: 0.85 });
   for (let i = 0; i < n; i++) {
     const group = new THREE.Group(); group.position.z = 99999; group.visible = false;
-    const grid = new THREE.Mesh(new THREE.PlaneGeometry(80, 80, 14, 14), gridMat);
-    const core = new THREE.Mesh(new THREE.OctahedronGeometry(8.0, 0), coreMat);
-    group.add(grid, core);
+    // Ring structure with 4 segments, leaving a gap
+    const segs = [];
+    for (let s = 0; s < 4; s++) {
+      const angle = (s / 4) * Math.PI * 2;
+      // Create arc segments instead of full plane
+      const seg = new THREE.Mesh(new THREE.BoxGeometry(12, 4, 2), segMat);
+      seg.position.set(Math.cos(angle) * 12, Math.sin(angle) * 12, 0);
+      seg.rotation.z = angle + Math.PI / 2;
+      group.add(seg);
+      segs.push(seg);
+    }
+    // Small decorative core (no collision)
+    const core = new THREE.Mesh(new THREE.OctahedronGeometry(3.0, 0), coreMat);
+    group.add(core);
     scene.add(group);
-    pool.push({ group, grid, core, type: "firewall", active: false, health: 1 });
+    pool.push({ group, segs, core, type: "firewall", active: false, gapIdx: 0 });
   }
   return pool;
 }
@@ -1536,10 +1547,12 @@ function detectHazards(pAABB, nmAABB, oAABB, ship, rings, walls, firewalls, wind
     }
   }
   if (firewalls) for (const o of firewalls) {
-    if (!o.active) continue;
-    oAABB.setFromObject(o.grid);
-    if (pAABB.intersectsBox(oAABB)) return { collided: true, nearMiss: false };
-    if (nmAABB.intersectsBox(oAABB)) nearMiss = true;
+    if (!o.active || Math.abs(ship.position.z - o.group.position.z) > 5) continue;
+    for (const seg of o.segs) {
+      oAABB.setFromObject(seg);
+      if (pAABB.intersectsBox(oAABB)) return { collided: true, nearMiss: false };
+      if (nmAABB.intersectsBox(oAABB)) nearMiss = true;
+    }
   }
   if (windmills) for (const o of windmills) {
     if (!o.active) continue;
