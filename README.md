@@ -41,11 +41,15 @@ SKYBREAK isn't just another endless runner. It's a **survival shooter with a nar
 
 The AI watches your every move, growing increasingly desperate as you prove too skilled:
 
-- **Mockery Phase** - Confident, insulting, certain of your failure
-- **Suspicion Phase** - Paranoid that you're cheating
-- **Aggression Phase** - Actively sabotages with inverted controls, space compression, visual glitches
-- **Panic Phase** - The insults stop. Fear sets in.
-- **Broken Phase** - Complete breakdown as you approach the portal
+| Phase | Duration | Description |
+|-------|----------|-------------|
+| **Mockery** | 0s - 45s | Confident, insulting, certain of your failure |
+| **Suspicion** | 45s - 100s (55s) | Paranoid that you're cheating |
+| **Aggression** | 100s - 160s (60s) | Actively sabotages with inverted controls, space compression, visual glitches |
+| **Panic** | 160s - 185s (25s) | The insults stop. Fear sets in. |
+| **Broken** | 185s+ | Complete breakdown as you approach the portal |
+
+**Note:** The AI phases accelerate based on your "disruption" meter (filled by destroying cores). The more cores you destroy, the faster the AI breaks down.
 
 ### **The Escape Moment**
 Hit the portal to shatter reality. The AI's final words:  
@@ -80,10 +84,36 @@ Hit the portal to shatter reality. The AI's final words:
 
 ### **Obstacles**
 
-1. **Rings** - Rotating rings with gaps to fly through
-2. **Wall Gaps** - Orange walls with openings (some are "crushers" that move)
-3. **Firewalls (Purple Walls)** - Solid magenta grids with destroyable cores. **Shoot the center core to pass!**
-4. **Windmills** - Spinning red obstacles
+Obstacles spawn progressively based on survival time:
+
+| Obstacle | Appears At | Description |
+|----------|------------|-------------|
+| **Rings** | 0s+ | Rotating rings with gaps to fly through. Only obstacle for first 12 seconds. |
+| **Wall Gaps** | 12s+ | Orange walls with openings. "Crushers" (moving walls) appear after 25s. |
+| **Firewalls** | 35s+ | Solid magenta grids with destroyable cores. **Shoot the center core to pass!** |
+| **Windmills** | 35s+ | Spinning red obstacles. More frequent after 75s. |
+
+**Difficulty Scaling:**
+- **0-12s:** Only Rings (learn the basics)
+- **12-35s:** Rings + Walls (introduce wall navigation)
+- **35-75s:** All obstacle types (full challenge)
+- **75s+:** Fewer rings, more walls/firewalls/windmills (maximum difficulty)
+
+### **AI Attacks**
+
+The AI sabotages you with repeated attacks throughout the 3-minute run. Each attack type triggers multiple times:
+
+| Attack | Trigger Times | Duration | Effect |
+|--------|---------------|----------|--------|
+| **Invert Controls** | 20s, 65s, 105s, 155s | 4-5s | Left/right and up/down inputs are reversed |
+| **Compress Space** | 32s, 85s, 135s | 6-7s | Tunnel narrows from 25 units to 12.5 units radius |
+| **Fragment Light** | 40s, 75s, 125s, 165s | 3.5-6s | Visual glitching, chromatic aberration, camera shake |
+| **Optimize Path** | 47s, 95s, 145s | 5s | Forces wall corridor obstacles with tight gaps |
+
+**Attack Phases:**
+- **Phase 1 (20-60s):** Introduces each attack type once
+- **Phase 2 (60-120s):** Repeats attacks with increased frequency
+- **Phase 3 (120-180s):** Maximum harassment, longer durations, overlapping effects possible
 
 ### **Glitch Cores**
 - Pink/red octahedrons that float toward you

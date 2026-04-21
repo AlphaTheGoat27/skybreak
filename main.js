@@ -1344,7 +1344,7 @@ function buildFirewallPool(scene, n) {
   for (let i = 0; i < n; i++) {
     const group = new THREE.Group(); group.position.z = 99999; group.visible = false;
     const grid = new THREE.Mesh(new THREE.PlaneGeometry(80, 80, 14, 14), gridMat);
-    const core = new THREE.Mesh(new THREE.OctahedronGeometry(6.0, 0), coreMat);
+    const core = new THREE.Mesh(new THREE.OctahedronGeometry(8.0, 0), coreMat);
     group.add(grid, core);
     scene.add(group);
     pool.push({ group, grid, core, type: "firewall", active: false, health: 1 });
@@ -1717,10 +1717,23 @@ function buildStartPortal(sys, referrer, playerZ) {
 // ═══════════════════════════════════════════════════════════════════
 function buildAIDirector(ai, hooks) {
   const schedule = [
+    // Phase 1: Early aggression (20-60s)
     { key: "INVERT_CONTROLS", at: 20, dur: 4 },
     { key: "COMPRESS_SPACE", at: 32, dur: 6 },
     { key: "FRAGMENT_LIGHT", at: 40, dur: 3.5 },
     { key: "OPTIMIZE_PATH", at: 47, dur: 5 },
+    // Phase 2: Mid-game harassment (60-120s)
+    { key: "INVERT_CONTROLS", at: 65, dur: 4 },
+    { key: "FRAGMENT_LIGHT", at: 75, dur: 4 },
+    { key: "COMPRESS_SPACE", at: 85, dur: 6 },
+    { key: "OPTIMIZE_PATH", at: 95, dur: 5 },
+    { key: "INVERT_CONTROLS", at: 105, dur: 4 },
+    // Phase 3: Late game chaos (120-180s)
+    { key: "FRAGMENT_LIGHT", at: 125, dur: 5 },
+    { key: "COMPRESS_SPACE", at: 135, dur: 7 },
+    { key: "OPTIMIZE_PATH", at: 145, dur: 5 },
+    { key: "INVERT_CONTROLS", at: 155, dur: 5 },
+    { key: "FRAGMENT_LIGHT", at: 165, dur: 6 },
   ].map(e => ({ ...e, fired: false, until: 0 }));
 
   const lines = {
