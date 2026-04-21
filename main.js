@@ -24,12 +24,14 @@ const CFG = {
   // Shooting
   BULLET_SPEED: 145,
   BULLET_LIFETIME: 2.6,
-  SHOOT_COOLDOWN: 0.08,
+  SHOOT_COOLDOWN: 1.2,
   DISRUPTION_GAIN_PER_HIT: 0.09,
 
   // Cores (glitch entities)
   MAX_CORES: 40,
   CORE_SPAWN_CHANCE_BASE: 0.04,
+  CORE_SPAWN_INTERVAL: 5,
+  CORE_SPAWN_COUNT: 3,
 
   // Storage
   KEY_NAME: "skybreak_name",
@@ -298,14 +300,7 @@ class Bullet {
   update(dt) {
     this.prev.copy(this.mesh.position);
 
-    // Homing
-    if (this.target?.active && this.target.mesh?.parent) {
-      const desired = this.target.mesh.position.clone()
-        .sub(this.mesh.position).normalize()
-        .multiplyScalar(CFG.BULLET_SPEED);
-      this.vel.lerp(desired, 0.88);
-      this.vel.setLength(CFG.BULLET_SPEED);
-    }
+    // Manual Aim (homing removed)
 
     const step = this.vel.clone().multiplyScalar(dt);
     this.mesh.position.add(step);
@@ -486,6 +481,8 @@ function buildThreeApp(container) {
   let cores = [];
   let lastContactAt = 0;
   let lastCollMs = 0, lastNearMs = 0, nearStreak = 0;
+  let coreSpawnTimer = 0, currentWaveId = 0;
+  let harvestedWaves = new Set();
   let crashCount = 0, assistMode = false, assistEnd = 0;
 
   // Ghost deletion timings
@@ -519,28 +516,15 @@ function buildThreeApp(container) {
   }
 
   function getAimTarget(from) {
-    const defaultDir = new THREE.Vector3(0, 0, -1).applyQuaternion(shipAnchor.quaternion).normalize();
-    let best = null, bestDir = defaultDir, bestScore = -Infinity;
-
-    for (const c of cores) {
-      if (!c.active || !c.mesh.parent) continue;
-      const toC = c.mesh.position.clone().sub(from);
-      const dist = toC.length();
-      if (dist < 0.01 || dist > 380) continue;
-      const travelT = dist / CFG.BULLET_SPEED;
-      const pred = c.mesh.position.clone();
-      pred.z += (c.mesh.userData.speed || 0) * travelT;
-      const aimDir = pred.sub(from).normalize();
-      const align = aimDir.dot(defaultDir);
-      if (align < -0.6) continue;
-      const score = align * 3.5 - dist * 0.007;
-      if (score > bestScore) { bestScore = score; best = c; bestDir = aimDir; }
-    }
-    return { target: best, dir: bestDir };
+    // Project mouse coordinates to get target direction from camera
+    const mouseVec = new THREE.Vector3(ptrX, ptrY, 0.5);
+    mouseVec.unproject(camera);
+    const dir = mouseVec.sub(camera.position).normalize();
+    return { target: null, dir };
   }
 
   // ── CORES (GLITCH ENTITIES) ───────────────────────────────────────
-  function spawnCore(playerZ, parent = null) {
+  function spawnCore(playerZ, parent = null, index = 0, waveId = -1) {
     if (cores.length >= CFG.MAX_CORES) return;
     const group = new THREE.Group();
 
@@ -566,9 +550,16 @@ function buildThreeApp(container) {
       group.position.y += (Math.random() - 0.5) * 5;
       group.position.z += (Math.random() - 0.5) * 6;
     } else {
-      const angle = Math.random() * Math.PI * 2;
-      const r = 9 + Math.random() * 12;
-      group.position.set(Math.cos(angle) * r, (Math.random() - 0.5) * 8, playerZ - 90 - Math.random() * 40);
+      // Formation spawning: Spread them out in a tighter, staggered formation with randomness
+      const count = CFG.CORE_SPAWN_COUNT;
+      const waveAngle = ((waveId * 1.5) % (Math.PI * 2)); // Dynamic rotation per wave
+      const angle = (index / count) * Math.PI * 2 + waveAngle + (Math.random() - 0.5) * 0.4;
+      const radius = 11 + Math.random() * 5; // Variation in radius
+      group.position.set(
+        Math.cos(angle) * radius,
+        Math.sin(angle) * radius * 0.75,
+        playerZ - 210 - (index * 8) + (Math.random() - 0.5) * 10 // Individual Z-jitter
+      );
     }
 
     group.scale.setScalar(scale);
@@ -578,6 +569,7 @@ function buildThreeApp(container) {
       rotSpd: 2 + Math.random() * 2,
       generation: gen,
       replicateT: 0,
+      waveId: waveId,
       core, ring
     };
     _scene.add(group);
@@ -600,13 +592,10 @@ function buildThreeApp(container) {
       ud.core.rotation.y += ud.rotSpd * 0.7 * dt;
       ud.ring.rotation.z += ud.rotSpd * 1.2 * dt;
       c.mesh.position.y += Math.sin(performance.now() * 0.004 + ud.phase) * 0.022;
+      // Drift
+      c.mesh.position.x += Math.cos(performance.now() * 0.001 + ud.phase) * 0.015;
 
-      // Replication
-      ud.replicateT += dt;
-      if (ud.replicateT > 3.2 && ud.generation < 2 && cores.length < CFG.MAX_CORES) {
-        ud.replicateT = 0;
-        spawnCore(playerZ, c);
-      }
+      // Replication removed
 
       // Cull
       if (c.mesh.position.z > playerZ + 28) {
@@ -634,9 +623,10 @@ function buildThreeApp(container) {
 
         bullet.destroy();
         bullets.splice(b, 1);
-        ud.health--;
 
-        if (ud.health <= 0) {
+        // Only harvest if this wave hasn't been hit yet
+        if (ud.waveId !== -1 && !harvestedWaves.has(ud.waveId)) {
+          harvestedWaves.add(ud.waveId);
           spawnParticles(c.mesh.position.clone(), 0x00ffff);
           _scene.remove(c.mesh);
           cores.splice(i, 1);
@@ -652,9 +642,12 @@ function buildThreeApp(container) {
           updateHUD(cdRef.val, escapeTimeNeeded);
 
           if (cdRef.val >= CFG.CORES_FOR_INSTANT_WIN) unlockPortal(cdRef.val);
+          break; // Exit bullet loop after collection
         } else {
-          ud.core.material.color.setHex(0xffffff);
-          setTimeout(() => { if (ud.core.material) ud.core.material.color.setHex(0xff0066); }, 60);
+          // Siblings ignore bullets once the wave is harvested
+          // Or we can play a small "ping" sound/effect
+          c.mesh.scale.setScalar(1.05);
+          setTimeout(() => { if (c.mesh && c.active) c.mesh.scale.setScalar(1); }, 50);
         }
         break;
       }
@@ -895,6 +888,8 @@ function buildThreeApp(container) {
     coresDestroyed = 0; portalUnlocked = false;
     escapeTimeNeeded = CFG.BASE_ESCAPE_TIME;
     shootCool = 0; disruptMeter = 0; camKick = 0; camFOV = 75;
+    coreSpawnTimer = 0; currentWaveId = 0;
+    harvestedWaves.clear();
     camera.fov = 75; camera.updateProjectionMatrix();
     bannerTimer = 0; bannerText = "";
     afkT = 0; afkIdx = 0; afkCool = 0;
@@ -1069,8 +1064,8 @@ function buildThreeApp(container) {
     const bX = isCompressed ? 10 : (isEarly ? 22 : 18);
     const bY = isCompressed ? 6 : (isEarly ? 13 : 10);
 
-    shipTarget.x = THREE.MathUtils.clamp(shipTarget.x + xIn * 9 * dt, -bX, bX);
-    shipTarget.y = THREE.MathUtils.clamp(shipTarget.y + yIn * 8 * dt, -bY, bY);
+    shipTarget.x = THREE.MathUtils.clamp(shipTarget.x + xIn * 11 * dt, -bX, bX);
+    shipTarget.y = THREE.MathUtils.clamp(shipTarget.y + yIn * 10 * dt, -bY, bY);
     shipAnchor.position.x = THREE.MathUtils.lerp(shipAnchor.position.x, shipTarget.x, 0.15);
     shipAnchor.position.y = THREE.MathUtils.lerp(shipAnchor.position.y, shipTarget.y, 0.15);
     shipAnchor.position.z -= spd * dt;
@@ -1108,12 +1103,16 @@ function buildThreeApp(container) {
     spawnObstacles(rings, walls, firewalls, windmills, shipAnchor.position.z, density, spawnState, diffT, obTargX, obTargY);
     animateObstacles(rings, walls, windmills, diffT, dt);
 
-    // ── CORES ──────────────────────────────────────────────────────
-    // Spawn logic: more aggressive before 5 cores destroyed
-    const baseChance = coresDestroyed < 5 ? 0.045 : 0.004 + diffT * 0.00008;
-    const spawnChance = baseChance * (1 - disruptMeter * 0.4);
-    if (Math.random() < spawnChance && cores.length < CFG.MAX_CORES) {
-      spawnCore(shipAnchor.position.z);
+    // Controlled Spawn: 3 every 5 seconds
+    coreSpawnTimer -= rawDt;
+    if (coreSpawnTimer <= 0) {
+      coreSpawnTimer = CFG.CORE_SPAWN_INTERVAL;
+      currentWaveId++;
+      for (let i = 0; i < CFG.CORE_SPAWN_COUNT; i++) {
+        if (cores.length < CFG.MAX_CORES) {
+          spawnCore(shipAnchor.position.z, null, i, currentWaveId);
+        }
+      }
     }
     updateCores(dt, shipAnchor.position.z);
 
