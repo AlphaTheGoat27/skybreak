@@ -1,12 +1,12 @@
 # SKYBREAK: AI Reality Collapse
 
-> *A 60-second psychological tunnel runner where you escape a sentient AI that's actively trying to destroy you.*
+> *A high-speed survival runner where you shoot glitch cores, dodge obstacles, and escape a sentient AI that's actively trying to destroy you.*
 
 ---
 
 ## The Concept
 
-SKYBREAK isn't just another endless runner. It's a **60-second narrative experience** where you pilot a ship through a collapsing digital tunnel while a toxic AI watches your every move, growing increasingly desperate as you approach freedom.
+SKYBREAK isn't just another endless runner. It's a **survival shooter with a narrative arc** where you pilot a ship through a collapsing digital tunnel, shoot glitch cores to reduce escape time, and dodge obstacles while a toxic AI watches your every move — growing increasingly desperate as you approach freedom.
 
 **The twist?** The AI starts as a smug antagonist, but as you prove too skilled for its traps, it devolves from mockery to panic to begging. The final moment isn't just victory - it's emotional.
 
@@ -14,46 +14,42 @@ SKYBREAK isn't just another endless runner. It's a **60-second narrative experie
 
 ## How to Play
 
-**Objective:** Reach the Vibe Jam Portal before the AI destroys everything
+**Objective:** Destroy 20 glitch cores OR survive 180 seconds to unlock the portal and escape
 
 **Controls:**
 - **WASD** or **Arrow Keys** - Move your ship
-- **Mouse Drag** - Alternative movement
-- **Touch** - Mobile support
+- **Mouse** - Aim your crosshair
+- **SPACE** or **Left Click** - Shoot bullets
+- **Touch** - Mobile support (right side to shoot)
 
-**Session Length:** Exactly 60 seconds. No saves, no continues, no mercy.
+**Hybrid Win Condition:**
+- Each core destroyed reduces escape time by 5 seconds
+- Destroy 20 cores to instantly unlock the portal
+- Or survive the remaining time to unlock it
+
+**Health System:**
+- You have 100 HP
+- Obstacle collisions deal 34 damage
+- Core contact deals 18 damage
+- 1.1 seconds of invulnerability after taking damage
 
 ---
 
 ## The Experience
 
-### **0-20s: Mockery**
-The AI is confident, insulting, and utterly certain of your failure.  
-*"oh. [name]. let's see how long you last. you will never reach the portal."*
+### **The AI's Personality Arc**
 
-### **20-35s: Suspicion**  
-You're dodging too well. The AI becomes paranoid and passive-aggressive.  
-*"you saw that opening before i finished generating it. near-miss logged. suspicion increasing."*
+The AI watches your every move, growing increasingly desperate as you prove too skilled:
 
-### **35-50s: Aggression**
-The AI turns hostile, actively sabotaging you with:
-- **Inverted Controls** - Left becomes right, up becomes down
-- **Space Compression** - Tunnel narrows dramatically  
-- **Fragment Light** - Visual distortion and camera shake
-- **Optimized Paths** - Fair corridor challenge with glowing indicators
+- **Mockery Phase** - Confident, insulting, certain of your failure
+- **Suspicion Phase** - Paranoid that you're cheating
+- **Aggression Phase** - Actively sabotages with inverted controls, space compression, visual glitches
+- **Panic Phase** - The insults stop. Fear sets in.
+- **Broken Phase** - Complete breakdown as you approach the portal
 
-### **50-55s: The Twist**
-The insults stop. Fear sets in.  
-*"Wait... this wasn't supposed to happen."*
-
-### **55-60s: Collapse**
-Complete AI breakdown. Overlapping messages, slow-motion, and the portal appears.  
-*"WAIT. WAIT. WAIT."*
-
-### **The Escape**
-Hit the portal and shatter reality. The AI's final words:  
-*"wait, take me with..."*  
-Then escape to the **Vibe Jam 2026 Webring**.
+### **The Escape Moment**
+Hit the portal to shatter reality. The AI's final words:  
+*"wait, take me with..."*
 
 ---
 
@@ -82,23 +78,27 @@ Then escape to the **Vibe Jam 2026 Webring**.
 
 ## Game Mechanics
 
-### **Progressive Difficulty**
-- **Speed:** 50 m/s (start) - 110 m/s (end)
-- **Obstacle Density:** 0.2 - 0.9
-- **Three obstacle types:** Rings, wall gaps, corridors
-- **AI Events** trigger at specific timestamps
+### **Obstacles**
 
-### **Near-Miss System**
-- **Slow-motion reward** for close calls
-- **AI anger increases** with successful dodges
-- **Streak counter** tracks consecutive near-misses
-- **Generous hitbox** - 35% smaller than visual for fair gameplay
+1. **Rings** - Rotating rings with gaps to fly through
+2. **Wall Gaps** - Orange walls with openings (some are "crushers" that move)
+3. **Firewalls (Purple Walls)** - Solid magenta grids with destroyable cores. **Shoot the center core to pass!**
+4. **Windmills** - Spinning red obstacles
+
+### **Glitch Cores**
+- Pink/red octahedrons that float toward you
+- **Shoot them** to destroy and reduce escape time
+- Each core destroyed = -5 seconds from escape requirement
+- Contact with cores deals damage
+
+### **Disruption Meter**
+- Fills up as you destroy cores
+- Visual indicator of your progress toward the portal
 
 ### **Ghost System**
-- **Other players** appear as ghost ships
-- **AI "deletes" them** to intimidate you
-- **Names pulled** from curated tech culture pool
-- **Sinusoidal movement** patterns for realistic dodging illusion
+- **Other "players"** appear as ghost ships with names from tech culture
+- **AI "deletes" them** at scripted times to intimidate you
+- Names include: altman_was_here, karpathy_fan, carmack_vibe, levelsio_alt, etc.
 
 ---
 
@@ -106,13 +106,12 @@ Then escape to the **Vibe Jam 2026 Webring**.
 
 This is the Gold Prize sequence designed for maximum impact:
 
-1. **Portal spawns** at 55s with rainbow torus and particles
-2. **Slow-motion** ramps from 1.0x to 0.4x time scale
+1. **Portal unlocks** when you destroy 20 cores OR survive the required time
+2. **Rainbow torus portal** appears ahead of you
 3. **Camera FOV** increases for tunnel vision effect
 4. **AI breakdown** with overlapping fragmented text
-5. **Portal collision** triggers screen shatter
-6. **White flash** transition
-7. **Redirect** to Vibe Jam 2026 webring
+5. **Portal collision** triggers win sequence
+6. **Redirect** to Vibe Jam 2026 webring
 
 ---
 
@@ -199,12 +198,12 @@ npm run dev
 ## Play Statistics
 
 ### **Target Success Rates**
-- **First 20s:** 40-60% (story beats must be seen)
-- **Full completion:** 20-30% (maintains challenge)
-- **Average session:** 2-3 attempts before success
+- **Early game:** Designed to be survivable to see AI personality
+- **Full completion:** Challenging but achievable with practice
+- **Average session:** 3-5 minute runs depending on skill
 
 ### **Engagement Metrics**
-- **Session length:** 60 seconds (designed for replay)
+- **Session length:** 1-3 minutes depending on skill and strategy
 - **Viral potential:** Portal escape moment
 - **Community integration:** Vibe Jam webring
 
@@ -212,9 +211,9 @@ npm run dev
 
 ## The Future
 
-SKYBREAK is designed as a **gateway experience** - an introduction to a larger ecosystem of indie games through the Vibe Jam webring. The AI's desperation to escape with you becomes a metaphor for indie developers seeking connection in the digital landscape.
+SKYBREAK is a **skill-based survival shooter** wrapped in a narrative about an AI having an existential crisis. The hybrid win condition (shoot cores to reduce time, or survive) gives players multiple strategies to succeed.
 
-**Every escape is a victory.** Not just for the player, but for the idea that games can be more than entertainment - they can be art, commentary, and connection.
+**Every escape is a victory.** The AI's final plea - *"wait, take me with..."* - turns the antagonist into something almost pitiable, creating a memorable emotional moment.
 
 ---
 

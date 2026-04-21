@@ -111,20 +111,7 @@ app.innerHTML = `
 
 <!-- Intro -->
 <div id="intro-screen" class="intro-screen">
-  <svg class="logo-mark" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-    <defs>
-      <linearGradient id="lgrad" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" style="stop-color:#00ffff"/>
-        <stop offset="100%" style="stop-color:#ff00ff"/>
-      </linearGradient>
-    </defs>
-    <polygon points="100,18 182,100 100,182 18,100" fill="none" stroke="url(#lgrad)" stroke-width="3"/>
-    <circle cx="100" cy="100" r="26" fill="none" stroke="#00ffff" stroke-width="2" opacity="0.7"/>
-    <line x1="100" y1="18" x2="100" y2="46" stroke="#00ffff" stroke-width="2"/>
-    <line x1="100" y1="154" x2="100" y2="182" stroke="#00ffff" stroke-width="2"/>
-    <line x1="18" y1="100" x2="46" y2="100" stroke="#00ffff" stroke-width="2"/>
-    <line x1="154" y1="100" x2="182" y2="100" stroke="#00ffff" stroke-width="2"/>
-  </svg>
+  <img class="logo-mark" src="/logo.png" alt="SKYBREAK" onerror="this.style.display='none'"/>
   <h1 class="game-title">SKYBREAK</h1>
   <p class="game-subtitle">AI REALITY COLLAPSE</p>
   <div id="intro-label" class="intro-label"></div>
@@ -136,10 +123,8 @@ app.innerHTML = `
     <input id="intro-input" class="intro-input" type="text" placeholder="enter pilot name... or leave blank" maxlength="16" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false">
     <button type="submit" class="intro-button">ENTER THE VOID</button>
   </form>
-  <div class="best-display">
-    <span id="best-display-text">PB: --</span>
-  </div>
   <p class="creator-credit">made by ai, prompted by <a href="https://x.com/AlphaGoat2711" target="_blank">@AlphaGoat2711</a> · vibe jam 2026</p>
+  <p class="github-link"><a href="https://github.com/AlphaTheGoat27/skybreak" target="_blank">open source on github</a></p>
 </div>
 
 <div id="shoot-hint" class="shoot-hint"></div>
@@ -194,7 +179,7 @@ G.introInput.focus();
 
 // Best score display
 const storedBest = Number(localStorage.getItem(CFG.KEY_BEST) || 0);
-if (storedBest > 0) G.bestDisplay.textContent = `PB: ${storedBest.toFixed(1)}s`;
+if (storedBest > 0 && G.bestDisplay) G.bestDisplay.textContent = `PB: ${storedBest.toFixed(1)}s`;
 
 // Typewriter intro
 const INTRO_TEXT = "[SYSTEM_AI] > identify yourself. or don't. i'll find out anyway.";
@@ -1359,7 +1344,7 @@ function buildFirewallPool(scene, n) {
   for (let i = 0; i < n; i++) {
     const group = new THREE.Group(); group.position.z = 99999; group.visible = false;
     const grid = new THREE.Mesh(new THREE.PlaneGeometry(80, 80, 14, 14), gridMat);
-    const core = new THREE.Mesh(new THREE.OctahedronGeometry(2.2, 0), coreMat);
+    const core = new THREE.Mesh(new THREE.OctahedronGeometry(6.0, 0), coreMat);
     group.add(grid, core);
     scene.add(group);
     pool.push({ group, grid, core, type: "firewall", active: false, health: 1 });
