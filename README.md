@@ -107,7 +107,7 @@ The AI sabotages you with repeated attacks throughout the 3-minute run. Each att
 |--------|---------------|----------|--------|
 | **Invert Controls** | 20s, 65s, 105s, 155s | 6-8s | Left/right and up/down inputs are reversed |
 | **Compress Space** | 32s, 85s, 135s | 6-7s | Tunnel narrows from 25 units to 12.5 units radius |
-| **Fragment Light** | 40s, 75s, 125s, 165s | 3.5-6s | Visual glitching, chromatic aberration, camera shake |
+| **Fragment Light** | 40s, 75s, 125s, 165s | 5s | Heavy visual glitching, screen flickers, strong chromatic aberration, intense camera shake |
 | **Optimize Path** | 47s, 95s, 145s | 5s | Forces wall corridor obstacles with tight gaps |
 
 **Attack Phases:**

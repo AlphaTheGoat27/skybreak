@@ -1126,10 +1126,10 @@ function buildThreeApp(container) {
     ).add(kick);
 
     if (aiDirector.isFragmentLight()) {
-      camTarg.x += (Math.random() - 0.5) * 4.8;
-      camTarg.y += (Math.random() - 0.5) * 4.8;
-      camera.position.x += (Math.random() - 0.5) * 2.4;
-      camera.position.y += (Math.random() - 0.5) * 2.4;
+      camTarg.x += (Math.random() - 0.5) * 7.2;
+      camTarg.y += (Math.random() - 0.5) * 7.2;
+      camera.position.x += (Math.random() - 0.5) * 3.6;
+      camera.position.y += (Math.random() - 0.5) * 3.6;
     }
 
     camLerp.lerp(camTarg, 0.1);
@@ -1809,11 +1809,11 @@ function buildAIDirector(ai, hooks) {
     // Phase 1: Early aggression (20-60s)
     { key: "INVERT_CONTROLS", at: 20, dur: 6 },
     { key: "COMPRESS_SPACE", at: 32, dur: 6 },
-    { key: "FRAGMENT_LIGHT", at: 40, dur: 3.5 },
+    { key: "FRAGMENT_LIGHT", at: 40, dur: 5 },
     { key: "OPTIMIZE_PATH", at: 47, dur: 5 },
     // Phase 2: Mid-game harassment (60-120s)
     { key: "INVERT_CONTROLS", at: 65, dur: 6 },
-    { key: "FRAGMENT_LIGHT", at: 75, dur: 4 },
+    { key: "FRAGMENT_LIGHT", at: 75, dur: 5 },
     { key: "COMPRESS_SPACE", at: 85, dur: 6 },
     { key: "OPTIMIZE_PATH", at: 95, dur: 5 },
     { key: "INVERT_CONTROLS", at: 105, dur: 6 },
@@ -1822,7 +1822,7 @@ function buildAIDirector(ai, hooks) {
     { key: "COMPRESS_SPACE", at: 135, dur: 7 },
     { key: "OPTIMIZE_PATH", at: 145, dur: 5 },
     { key: "INVERT_CONTROLS", at: 155, dur: 8 },
-    { key: "FRAGMENT_LIGHT", at: 165, dur: 6 },
+    { key: "FRAGMENT_LIGHT", at: 165, dur: 5 },
   ].map(e => ({ ...e, fired: false, until: 0 }));
 
   let invertOn = false, compressOn = false, fragOn = false;
