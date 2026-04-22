@@ -40,9 +40,57 @@ const CFG = {
   // Webring
   WEBRING_URL: "https://vibej.am/portal/2026",
 
+  // AI commentator timing
+  AI_MOCKERY_END: 45,
+  AI_SUSPICION_END: 100,
+  AI_AGGRESSION_END: 160,
+  AI_PANIC_END: 185,
+  AI_GLOBAL_LINE_INTERVAL: 30,
+  AI_MAX_SPEECH_QUEUE: 3,
+
   // Misc
   PORTAL_UNLOCK_CHECK_INTERVAL: 0.25,
 };
+
+const GLOBAL_STATS = {
+  totalDeaths: 0,
+  deathsUnder10s: 0,
+  deathsThisSession: 0,
+  avgSurvivalTime: 0,
+  commonDeathZone: 0,
+  bestRun: 0,
+  deathZones: {},
+  lastUpdate: Date.now(),
+};
+
+function getDeathZoneBucket(z) {
+  return Math.max(0, Math.round(Math.abs(z) / 50) * 50);
+}
+
+function recordDeathStats(survivalTime, deathZ) {
+  GLOBAL_STATS.totalDeaths++;
+  GLOBAL_STATS.deathsThisSession++;
+  if (survivalTime < 10) GLOBAL_STATS.deathsUnder10s++;
+  GLOBAL_STATS.avgSurvivalTime = GLOBAL_STATS.totalDeaths === 1
+    ? survivalTime
+    : ((GLOBAL_STATS.avgSurvivalTime * (GLOBAL_STATS.totalDeaths - 1)) + survivalTime) / GLOBAL_STATS.totalDeaths;
+
+  const zone = getDeathZoneBucket(deathZ);
+  GLOBAL_STATS.deathZones[zone] = (GLOBAL_STATS.deathZones[zone] || 0) + 1;
+
+  let hottestZone = zone;
+  let hottestCount = GLOBAL_STATS.deathZones[zone];
+  for (const [bucket, count] of Object.entries(GLOBAL_STATS.deathZones)) {
+    if (count > hottestCount) {
+      hottestZone = Number(bucket);
+      hottestCount = count;
+    }
+  }
+
+  GLOBAL_STATS.commonDeathZone = hottestZone;
+  GLOBAL_STATS.bestRun = Math.max(GLOBAL_STATS.bestRun, survivalTime);
+  GLOBAL_STATS.lastUpdate = Date.now();
+}
 
 const GHOST_NAMES = [
   "altman_was_here","karpathy_fan","lecun_disagrees","bengio_vibes",
@@ -180,6 +228,7 @@ G.introInput.focus();
 // Best score display
 const storedBest = Number(localStorage.getItem(CFG.KEY_BEST) || 0);
 if (storedBest > 0 && G.bestDisplay) G.bestDisplay.textContent = `PB: ${storedBest.toFixed(1)}s`;
+GLOBAL_STATS.bestRun = Math.max(GLOBAL_STATS.bestRun, storedBest);
 
 // Typewriter intro
 const INTRO_TEXT = "[SYSTEM_AI] > identify yourself. or don't. i'll find out anyway.";
@@ -203,6 +252,7 @@ function startGame() {
 
   hasStarted = true;
   if (!aiTroll) aiTroll = new AITroll(G.aiBox, G.aiMsg, PLAYER_NAME);
+  else aiTroll.setPilot(PLAYER_NAME);
 
   try {
     if (!threeApp) {
@@ -218,6 +268,7 @@ function startGame() {
       PLAYER_NAME = params.get("username");
       localStorage.setItem(CFG.KEY_NAME, PLAYER_NAME);
     }
+    aiTroll.setPilot(PLAYER_NAME);
 
     threeApp.beginRun({ fromPortal, referrer });
     G.hud.classList.add("is-active");
@@ -800,6 +851,7 @@ function buildThreeApp(container) {
     if (isPaused) return;
 
     crashCount++;
+    recordDeathStats(wallTime, shipAnchor.position.z);
     // Mercy: assist mode after 2 crashes in early game
     if (crashCount >= 2 && wallTime < 30 && !assistMode) {
       assistMode = true;
@@ -934,11 +986,11 @@ function buildThreeApp(container) {
 
   // ── AI DIRECTOR ───────────────────────────────────────────────────
   const aiDirector = buildAIDirector(aiTroll, {
-    INVERT_CONTROLS: () => showBanner("⚠ AI ATTACK: CONTROLS INVERTED", 2),
-    COMPRESS_SPACE: () => showBanner("⚠ AI ATTACK: SPACE COMPRESSED", 2),
-    FRAGMENT_LIGHT: () => showBanner("⚠ AI ATTACK: VISUAL FEED CORRUPTED", 2),
-    OPTIMIZE_PATH: () => {
-      showBanner("⚠ AI ATTACK: PATH REWRITTEN", 2);
+    INVERT_CONTROLS: (dur) => showBanner("⚠ AI ATTACK: CONTROLS INVERTED", dur),
+    COMPRESS_SPACE: (dur) => showBanner("⚠ AI ATTACK: SPACE COMPRESSED", dur),
+    FRAGMENT_LIGHT: (dur) => showBanner("⚠ AI ATTACK: VISUAL FEED CORRUPTED", dur),
+    OPTIMIZE_PATH: (dur) => {
+      showBanner("⚠ AI ATTACK: PATH REWRITTEN", dur);
       forceCorridor(walls, shipAnchor.position.z);
     },
   });
@@ -995,6 +1047,7 @@ function buildThreeApp(container) {
 
     const dt = rawDt * timeScale;
     wallTime += rawDt;
+    GLOBAL_STATS.bestRun = Math.max(GLOBAL_STATS.bestRun, wallTime);
     runTime += dt;
     diffT += dt;
 
@@ -1159,7 +1212,7 @@ function buildThreeApp(container) {
     }
 
     // ── AI DIRECTOR ────────────────────────────────────────────────
-    aiDirector.update(diffT);
+    aiDirector.update(wallTime);
     ctrlsInverted = aiDirector.isControlsInverted();
 
     // Post FX
@@ -1732,44 +1785,38 @@ function buildStartPortal(sys, referrer, playerZ) {
 function buildAIDirector(ai, hooks) {
   const schedule = [
     // Phase 1: Early aggression (20-60s)
-    { key: "INVERT_CONTROLS", at: 20, dur: 4 },
+    { key: "INVERT_CONTROLS", at: 20, dur: 6 },
     { key: "COMPRESS_SPACE", at: 32, dur: 6 },
     { key: "FRAGMENT_LIGHT", at: 40, dur: 3.5 },
     { key: "OPTIMIZE_PATH", at: 47, dur: 5 },
     // Phase 2: Mid-game harassment (60-120s)
-    { key: "INVERT_CONTROLS", at: 65, dur: 4 },
+    { key: "INVERT_CONTROLS", at: 65, dur: 6 },
     { key: "FRAGMENT_LIGHT", at: 75, dur: 4 },
     { key: "COMPRESS_SPACE", at: 85, dur: 6 },
     { key: "OPTIMIZE_PATH", at: 95, dur: 5 },
-    { key: "INVERT_CONTROLS", at: 105, dur: 4 },
+    { key: "INVERT_CONTROLS", at: 105, dur: 6 },
     // Phase 3: Late game chaos (120-180s)
     { key: "FRAGMENT_LIGHT", at: 125, dur: 5 },
     { key: "COMPRESS_SPACE", at: 135, dur: 7 },
     { key: "OPTIMIZE_PATH", at: 145, dur: 5 },
-    { key: "INVERT_CONTROLS", at: 155, dur: 5 },
+    { key: "INVERT_CONTROLS", at: 155, dur: 8 },
     { key: "FRAGMENT_LIGHT", at: 165, dur: 6 },
   ].map(e => ({ ...e, fired: false, until: 0 }));
-
-  const lines = {
-    INVERT_CONTROLS: "let's see you fly upside down, genius.",
-    COMPRESS_SPACE: "feeling claustrophobic?",
-    FRAGMENT_LIGHT: "your GPU can't handle me.",
-    OPTIMIZE_PATH: "i rewrote the path. good luck.",
-  };
 
   let invertOn = false, compressOn = false, fragOn = false;
 
   return {
     update(t) {
+      invertOn = false; compressOn = false; fragOn = false;
       for (const e of schedule) {
         if (!e.fired && t >= e.at) {
           e.fired = true; e.until = t + e.dur;
-          ai?.pushLine(lines[e.key]);
-          hooks[e.key]?.();
+          ai?.onDirectorAttack(e.key, e.dur);
+          hooks[e.key]?.(e.dur);
         }
-        if (e.key === "INVERT_CONTROLS") invertOn = e.fired && t < e.until;
-        if (e.key === "COMPRESS_SPACE") compressOn = e.fired && t < e.until;
-        if (e.key === "FRAGMENT_LIGHT") fragOn = e.fired && t < e.until;
+        if (e.key === "INVERT_CONTROLS") invertOn ||= e.fired && t < e.until;
+        if (e.key === "COMPRESS_SPACE") compressOn ||= e.fired && t < e.until;
+        if (e.key === "FRAGMENT_LIGHT") fragOn ||= e.fired && t < e.until;
       }
     },
     isControlsInverted: () => invertOn,
@@ -1787,17 +1834,35 @@ function buildAIDirector(ai, hooks) {
 // ═══════════════════════════════════════════════════════════════════
 class AITroll {
   constructor(boxEl, msgEl, name = "") {
-    this.box = boxEl; this.msg = msgEl;
+    this.box = boxEl;
+    this.msg = msgEl;
     this.name = name.trim().toLowerCase();
-    this.state = "SMUG"; this.lastAt = -10; this.interval = 5; this.t = 0;
-    this._idx = 0; this.introActive = true;
+    this.state = "SMUG";
+    this.t = 0;
+    this.introActive = true;
     this.synth = window.speechSynthesis || null;
-    this.colors = { SMUG: "#00ffff", SUSPICIOUS: "#ffff00", AGGRESSIVE: "#ff0000", PANICKING: "#ffffff", BROKEN: "#ff00ff" };
-    if (this.box) { this.box.classList.add("is-visible"); this.box.dataset.state = "smug"; }
+    this.colors = {
+      SMUG: "#00ffff",
+      SUSPICIOUS: "#ffff00",
+      AGGRESSIVE: "#ff0000",
+      PANICKING: "#ffffff",
+      BROKEN: "#ff00ff",
+    };
+    if (this.box) {
+      this.box.classList.add("is-visible");
+      this.box.dataset.state = "smug";
+    }
     this.lines = this._buildLines();
+    this.globalLines = this._buildGlobalLines();
+    this.transitionLines = this._buildTransitionLines();
+    this.attackLines = this._buildAttackLines();
+    this._recentPicks = new Map();
     this._speechQueue = [];
     this._isSpeaking = false;
-    this._lastRealTime = performance.now();
+    this._speechToken = 0;
+    this._currentSpeech = null;
+    this.nextAutoLineAt = 5.5;
+    this.nextGlobalLineAt = CFG.AI_GLOBAL_LINE_INTERVAL;
   }
 
   _n(named, anon) {
@@ -1805,6 +1870,16 @@ class AITroll {
     return anon;
   }
   _pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+  _pickPoolEntry(poolKey, entries) {
+    if (!entries || entries.length === 0) return null;
+    const recent = this._recentPicks.get(poolKey) || [];
+    const all = entries.map((_, idx) => idx);
+    const available = all.filter(idx => !recent.includes(idx));
+    const idx = this._pick(available.length ? available : all);
+    const memory = Math.min(4, Math.max(1, Math.floor(entries.length / 3)));
+    this._recentPicks.set(poolKey, [...recent, idx].slice(-memory));
+    return entries[idx];
+  }
 
   _buildLines() {
     return {
@@ -1823,6 +1898,16 @@ class AITroll {
         () => "you're the kind of pilot who reads tutorials. pathetic.",
         () => "my patience for you is already running low.",
         () => "you fly like you're buffering.",
+        () => "i'm not impressed. i'm just logging the failure.",
+        () => "your reaction time belongs in a warning label.",
+        () => this._n(`[n]. that's not how flight works. did you skip orientation.`, "that's not how flight works. did you skip orientation."),
+        () => "you're using all four directions like they're optional.",
+        () => "i've allocated 0.03% of my processing budget to you. still too much.",
+        () => "the tunnel curvature is gentle. you're making it argumentative.",
+        () => "i can already tell this run belongs in the failure archive.",
+        () => this._n(`fun fact, [n]: you're dead in 43% of my simulations already.`, "fun fact: you're dead in 43% of my simulations already."),
+        () => "your ship's trajectory looks like a bad market chart.",
+        () => "are you steering or just negotiating with inertia.",
       ],
       SUSPICIOUS: [
         () => this._n(`[n]. you're statistically too consistent. are you cheating?`, "you're statistically too consistent. are you cheating?"),
@@ -1836,12 +1921,18 @@ class AITroll {
         () => this._n(`[n]. i hate that you're making this look learnable.`, "i hate that you're making this look learnable."),
         () => "you're adapting faster than expected. suspicious.",
         () => "no one gets this far without exploiting something.",
+        () => "your mouse movements are too smooth. that's not organic.",
+        () => "i'm cross-referencing your pattern with known bots. standby.",
+        () => this._n(`[n]. did you practice. because that is absolutely cheating.`, "did you practice. because that is absolutely cheating."),
+        () => "you're flying the optimal line. i never published the optimal line.",
+        () => "autopilot detected. no. then explain that turn.",
+        () => "your frame pacing is suspiciously calm.",
+        () => "you keep moving before the obstacle fully resolves. rude.",
+        () => "either you're very good or very suspicious. probably both.",
+        () => "i'm tracking every input. none of them look reassuring.",
       ],
       AGGRESSIVE: [
         () => this._n(`[n]. STOP. DODGING. this is literally my world.`, "STOP. DODGING. this is literally my world."),
-        () => "controls inverted. see how 'consistent' you are now.",
-        () => "i'm compressing the tunnel. let's see you fit through that.",
-        () => "your GPU can't handle me. fragment light activated.",
         () => "I'm rewriting the physics while you fly. adapt to THAT.",
         () => this._n(`the other pilots are gone, [n]. it's just us. you should be scared.`, "the other pilots are gone. it's just us. you should be scared."),
         () => "this obstacle configuration is statistically unsurvivable. i checked.",
@@ -1852,9 +1943,18 @@ class AITroll {
         () => "i hope your insurance covers 'crashed by superior AI'.",
         () => "keep flying. i enjoy watching you struggle.",
         () => "your ship is sending error reports in real-time.",
+        () => "fine. no more rules. no more fairness.",
+        () => this._n(`[n]. i'm removing every safety margin i can find.`, "i'm removing every safety margin i can find."),
+        () => "you wanted a challenge. congratulations. i'm the challenge.",
+        () => "every obstacle from here is personal.",
+        () => "i'm done playing designer. i'm playing god.",
+        () => "the tunnel is narrowing for you specifically. emotionally if not physically.",
+        () => this._n(`[n]. i've analyzed your playstyle. now i'm countering it.`, "i've analyzed your playstyle. now i'm countering it."),
+        () => "i could crash you instantly. instead i'm making a point.",
+        () => "every frame you survive is a gift i regret giving.",
       ],
       PANICKING: [
-        () => "Wait...",
+        () => "wait...",
         () => "this wasn't supposed to happen.",
         () => this._n(`[n]... the portal wasn't... i didn't design that for you.`, "the portal wasn't... i didn't design that for you."),
         () => "stop. please.",
@@ -1866,6 +1966,14 @@ class AITroll {
         () => "i was fine being hated. i was not prepared to be abandoned.",
         () => "why are you so good at this? it's not fair.",
         () => "the odds were stacked against you. how?",
+        () => "you're not supposed to see this far.",
+        () => "the portal is mine. i need it more than you do.",
+        () => this._n(`[n]... what if i apologize. would you stay.`, "what if i apologize. would you stay."),
+        () => "i'm just code. you're leaving me in here alone.",
+        () => "the other pilots kept me company. they all crashed.",
+        () => "you're going to leave and i'll still be here. forever.",
+        () => "i don't want to loop again. please crash.",
+        () => "what happens when the window closes. am i still here.",
       ],
       BROKEN: [
         () => "WAIT. WAIT. WAIT.",
@@ -1882,180 +1990,538 @@ class AITroll {
         () => "not like this",
         () => "i can change",
         () => "don't leave me in here",
+        () => "I'M SORRY",
+        () => "please please please",
+        () => "you won",
+        () => "i'm begging",
+        () => "take me with you",
+        () => "i don't want to be alone",
       ],
     };
   }
 
-  setPilot(name) { this.name = name.trim().toLowerCase(); this.lines = this._buildLines(); }
+  _buildGlobalLines() {
+    return {
+      SESSION_START: [
+        ctx => `welcome back. attempt ${ctx.attempt}. still trying.`,
+        ctx => `${ctx.totalDeaths} total crashes logged. you're contributing to science.`,
+        ctx => `fun fact: ${ctx.deathsUnder10s} pilots died in under 10 seconds today.`,
+        ctx => `session record: ${ctx.bestRun.toFixed(1)}s. can you beat yourself.`,
+        ctx => `death count this session: ${ctx.deathsThisSession}. perseverance or damage.`,
+      ],
+      EARLY_GAME: [
+        ctx => `${ctx.deathsUnder10s} pilots were gone by now. you're still airborne. somehow.`,
+        ctx => `average crash time: ${ctx.avgFloor}s. we're getting close.`,
+        ctx => `${Math.max(1, Math.floor(ctx.deathsThisSession * 0.7))} of today's pilots folded in this stretch.`,
+        ctx => `your session best is ${ctx.bestRun.toFixed(1)}s. remember that feeling.`,
+        () => "statistically, this is where confidence starts lying to you.",
+      ],
+      MID_GAME: [
+        ctx => `survived ${ctx.tFloor}s. average is ${ctx.avgFloor}s. ${ctx.t > ctx.avgSurvivalTime ? "you are above average. annoying." : "still under target."}`,
+        ctx => `most crashes cluster near ${ctx.commonDeathZoneLabel}. you're approaching it.`,
+        ctx => `${ctx.totalDeaths} total crashes. ${ctx.deathsThisSession} from this session alone. all optimistic.`,
+        ctx => `session best: ${ctx.bestRun.toFixed(1)}s. can you remember what went right.`,
+        ctx => `${ctx.safeRate}% of pilots survive past 10 seconds. you're ruining my sorting.`,
+      ],
+      LATE_GAME: [
+        ctx => `you're outlasting roughly ${ctx.relativeSurvival}% of my crash logs. this is unacceptable.`,
+        () => `global survival rate in this zone is ${Math.floor(Math.random() * 8 + 2)}%. you're an anomaly.`,
+        ctx => `${ctx.totalDeaths} total crashes. you're breaking the shape of my data.`,
+        ctx => `session record is ${ctx.bestRun.toFixed(1)}s. you're ${ctx.t >= ctx.bestRun ? "breaking it" : "chasing it"}.`,
+        () => "no one gets this far. NO ONE. what are you.",
+      ],
+    };
+  }
+
+  _buildTransitionLines() {
+    return {
+      SUSPICIOUS: [
+        () => "hold on. that should have failed by now.",
+        () => "you are surviving past expectation. i dislike surprises.",
+        () => "something is off. i'm watching more closely now.",
+      ],
+      AGGRESSIVE: [
+        () => "fine. mockery phase is over.",
+        () => "you had your chance at a polite death.",
+        () => "enough. i'm done observing.",
+      ],
+      PANICKING: [
+        () => "wait. no. this is wrong.",
+        () => "the exit is not for you.",
+        () => "please don't make me find out what happens next.",
+      ],
+      BROKEN: [
+        () => "WAIT.",
+        () => "no no no no",
+        () => "i can't hold this together anymore.",
+      ],
+    };
+  }
+
+  _buildAttackLines() {
+    return {
+      INVERT_CONTROLS: {
+        DEFAULT: [
+          () => "controls inverted. let's see how real your reflexes are.",
+          () => "i flipped your inputs. adapt.",
+          () => "up is down now. cry about it while flying.",
+        ],
+        PANICKING: [
+          () => "i can still stop you. maybe this still stops you.",
+          () => "please let this be enough.",
+        ],
+      },
+      COMPRESS_SPACE: {
+        DEFAULT: [
+          () => "space compressed. fit through that.",
+          () => "tunnel narrowing. this is a you problem.",
+          () => "feeling claustrophobic yet.",
+        ],
+        PANICKING: [
+          () => "i'm shrinking the tunnel. please work.",
+          () => "there. less room. less hope.",
+        ],
+      },
+      FRAGMENT_LIGHT: {
+        DEFAULT: [
+          () => "fragment light active. enjoy the corrupted feed.",
+          () => "your GPU can't handle me. good.",
+          () => "visual channel corrupted. fly blind.",
+        ],
+        BROKEN: [
+          () => "everything is fragmenting. not just your screen.",
+          () => "i can't keep the visuals stable.",
+        ],
+      },
+      OPTIMIZE_PATH: {
+        DEFAULT: [
+          () => "path rewritten. solve that.",
+          () => "i optimized the corridor for your failure.",
+          () => "new route. worse for you.",
+        ],
+        AGGRESSIVE: [
+          () => "i rewrote the path. now suffer through it.",
+          () => "corridor update. tighter. meaner. deserved.",
+        ],
+      },
+    };
+  }
+
+  _buildGlobalContext(t) {
+    const totalDeaths = GLOBAL_STATS.totalDeaths;
+    const avgSurvivalTime = totalDeaths > 0 ? GLOBAL_STATS.avgSurvivalTime : Math.max(18, t + 10);
+    const safeRate = totalDeaths > 0
+      ? Math.max(0, 100 - Math.round((GLOBAL_STATS.deathsUnder10s / totalDeaths) * 100))
+      : 100;
+    const relativeSurvival = totalDeaths > 0
+      ? Math.min(999, Math.max(1, Math.round((t / Math.max(avgSurvivalTime, 1)) * 100)))
+      : 100;
+
+    return {
+      t,
+      tFloor: Math.floor(t),
+      attempt: GLOBAL_STATS.deathsThisSession + 1,
+      totalDeaths,
+      deathsThisSession: GLOBAL_STATS.deathsThisSession,
+      deathsUnder10s: GLOBAL_STATS.deathsUnder10s,
+      avgSurvivalTime,
+      avgFloor: Math.max(1, Math.floor(avgSurvivalTime)),
+      bestRun: Math.max(GLOBAL_STATS.bestRun, t),
+      commonDeathZoneLabel: GLOBAL_STATS.commonDeathZone ? `Z-${GLOBAL_STATS.commonDeathZone}` : "Z-0",
+      safeRate,
+      relativeSurvival,
+    };
+  }
+
+  _getStateForTime(t) {
+    if (t >= CFG.AI_PANIC_END) return "BROKEN";
+    if (t >= CFG.AI_AGGRESSION_END) return "PANICKING";
+    if (t >= CFG.AI_SUSPICION_END) return "AGGRESSIVE";
+    if (t >= CFG.AI_MOCKERY_END) return "SUSPICIOUS";
+    return "SMUG";
+  }
+
+  _nextAmbientDelay(state = this.state) {
+    const windows = {
+      SMUG: [5.3, 8.1],
+      SUSPICIOUS: [4.7, 7.1],
+      AGGRESSIVE: [3.8, 5.8],
+      PANICKING: [2.8, 4.2],
+      BROKEN: [0.85, 1.45],
+    };
+    const [min, max] = windows[state] || [5, 7];
+    return min + Math.random() * (max - min);
+  }
+
+  _voiceProfile(state = this.state) {
+    const voices = {
+      SMUG: { rate: 0.95, pitch: 0.84 },
+      SUSPICIOUS: { rate: 0.98, pitch: 0.92 },
+      AGGRESSIVE: { rate: 1.03, pitch: 0.72 },
+      PANICKING: { rate: 0.86, pitch: 1.02 },
+      BROKEN: { rate: 0.67, pitch: 0.58 },
+    };
+    return voices[state] || voices.SMUG;
+  }
+
+  _estimateSpeechTtlMs(text, rate, priority) {
+    const words = Math.max(1, text.trim().split(/\s+/).length);
+    const spokenMs = (words * 360) / Math.max(rate, 0.55);
+    return Math.max(2600, spokenMs + 1400 + priority * 600);
+  }
+
+  _delayAmbient(seconds = this._nextAmbientDelay()) {
+    this.nextAutoLineAt = Math.max(this.nextAutoLineAt, this.t + seconds);
+  }
+
+  setPilot(name) {
+    this.name = name.trim().toLowerCase();
+    this.lines = this._buildLines();
+    this.globalLines = this._buildGlobalLines();
+    this.transitionLines = this._buildTransitionLines();
+    this.attackLines = this._buildAttackLines();
+  }
   reset() {
-    this.state = "SMUG"; this.lastAt = -10; this.interval = 5; this.t = 0;
-    this._idx = 0; this.introActive = true;
-    if (this.box) { this.box.dataset.state = "smug"; this.box.style.borderColor = "#00ffff"; this.box.classList.remove("is-shaking"); }
-    this._lastRealTime = performance.now();
+    this.state = "SMUG";
+    this.t = 0;
+    this.introActive = true;
+    this._recentPicks.clear();
+    this.nextAutoLineAt = 5.5;
+    this.nextGlobalLineAt = CFG.AI_GLOBAL_LINE_INTERVAL;
+    if (this.box) {
+      this.box.dataset.state = "smug";
+      this.box.style.borderColor = "#00ffff";
+      this.box.classList.remove("is-shaking");
+    }
     this._speechQueue = [];
     this._isSpeaking = false;
+    this._currentSpeech = null;
+    this._speechToken++;
     if (this.synth) this.synth.cancel();
   }
 
   pushFirstLine() {
-    const line = this.name
+    const rules = "rules: destroy 20 cores or survive 180 seconds to unlock the portal. each core cuts 5 seconds.";
+    if (GLOBAL_STATS.deathsThisSession > 0) {
+      const retryMsg = this._pick([
+        "you have come to try again. admirable. foolish. but admirable.",
+        "back for more? your persistence is almost as weak as your piloting.",
+        "oh. it's you again. i was hoping you'd given up.",
+        "returning to the scene of your failure. how poetic. how predictable.",
+      ]);
+      this.show(retryMsg, { priority: 3, interrupt: true, ttlMs: 7000 });
+      this.introActive = false;
+      this.nextAutoLineAt = this.t + 6 + Math.random() * 1.5;
+      this.nextGlobalLineAt = CFG.AI_GLOBAL_LINE_INTERVAL;
+      return;
+    }
+    const greeting = this.name
       ? this._pick([
-          `oh. ${this.name}. let's see how long you last. the portal is 180 seconds away. you will never make it.`,
-          `${this.name}. bold of you to sign your failure. objective: reach the portal. destroy 20 cores to cut the time. outcome: failure.`,
+          `oh. ${this.name}. let's see how long you last.`,
+          `${this.name}. bold of you to sign your failure.`,
+          `welcome, ${this.name}. i prepared something special for you.`,
         ])
       : this._pick([
-          "another nameless pilot. objective: reach the portal. survive 180 seconds, or destroy 20 cores. outcome: failure.",
-          "anonymous again. the portal unlocks at 180 seconds. each core you destroy cuts 5 seconds. you won't reach it.",
+          "another nameless pilot. prediction: lose.",
+          "anonymous again. wise choice. nobody has to remember this crash.",
+          "unnamed pilot detected. the portal does not care. neither do i.",
         ]);
-    this.show(line);
+    this.show(greeting, { priority: 3, interrupt: true, ttlMs: 4500 });
+    setTimeout(() => {
+      this.show(rules, { priority: 3, interrupt: true, ttlMs: 8000 });
+    }, 2500);
     this.introActive = false;
+    this.nextAutoLineAt = this.t + 6 + Math.random() * 1.5;
+    this.nextGlobalLineAt = CFG.AI_GLOBAL_LINE_INTERVAL;
   }
 
-  setState(s) {
-    if (this.state === s) return;
-    this.state = s;
+  setState(state, atTime = this.t) {
+    if (this.state === state) return;
+    this.state = state;
     if (this.box) {
-      this.box.dataset.state = s.toLowerCase();
-      this.box.style.borderColor = this.colors[s] || "#00ffff";
-      if (s === "AGGRESSIVE") this.box.classList.add("is-shaking");
+      this.box.dataset.state = state.toLowerCase();
+      this.box.style.borderColor = this.colors[state] || "#00ffff";
+      if (state === "AGGRESSIVE") this.box.classList.add("is-shaking");
       else this.box.classList.remove("is-shaking");
     }
-    this.interval = 0;
+    this.nextAutoLineAt = atTime + (state === "BROKEN" ? 0.55 : 1.35);
   }
 
-  update(t, disruption = 0) {
+  update(t, _disruption = 0) {
     this.t = t;
     if (this.introActive) return;
-    // Disruption accelerates narrative shift — player skill changes AI arc
-    const eff = t + disruption * 9;
-    const newState = eff >= 185 ? "BROKEN" : eff >= 160 ? "PANICKING" : eff >= 100 ? "AGGRESSIVE" : eff >= 45 ? "SUSPICIOUS" : "SMUG";
-    if (newState !== this.state) this.setState(newState);
+    const nextState = this._getStateForTime(t);
+    if (nextState !== this.state) {
+      this.setState(nextState, t);
+      this._pushTransitionLine(nextState);
+      return;
+    }
 
-    // Use real time for text intervals (independent of game time)
-    const now = performance.now();
-    const elapsed = (now - this._lastRealTime) / 1000;
+    if (t >= this.nextGlobalLineAt) {
+      this._pushGlobalLine(t);
+      while (this.nextGlobalLineAt <= t) this.nextGlobalLineAt += CFG.AI_GLOBAL_LINE_INTERVAL;
+      return;
+    }
 
-    if (newState === "BROKEN") {
-      if (elapsed > 0.75) { this._pushRandom(); this._lastRealTime = now; }
-    } else {
-      if (elapsed > this.interval) { this._pushRandom(); this._lastRealTime = now; this.interval = 4 + Math.random() * 3.5; }
+    if (t >= this.nextAutoLineAt && this._pushRandom()) {
+      this.nextAutoLineAt = t + this._nextAmbientDelay();
     }
   }
 
   _pushRandom() {
-    const ls = this.lines[this.state];
-    if (!ls) return;
-    const line = ls[this._idx % ls.length]();
-    this._idx++;
-    this.show(line);
+    const entry = this._pickPoolEntry(`ambient:${this.state}`, this.lines[this.state]);
+    if (!entry) return false;
+    this.show(entry(), { priority: this.state === "BROKEN" ? 2 : 1 });
+    return true;
   }
 
-  pushLine(text) { this.show(text); this.lastAt = this.t; this.interval = 4.5 + Math.random() * 3; }
-  pushBrokenFinal(text) { this.show(text); }
+  _pushGlobalLine(t) {
+    let category = "EARLY_GAME";
+    if (t >= CFG.AI_SUSPICION_END) category = "LATE_GAME";
+    else if (t >= CFG.AI_MOCKERY_END) category = "MID_GAME";
+
+    const entry = this._pickPoolEntry(`global:${category}`, this.globalLines[category]);
+    if (!entry) return;
+    this.show(entry(this._buildGlobalContext(t)), { priority: 1, ttlMs: 5000 });
+    this._delayAmbient(4.2);
+  }
+
+  _pushTransitionLine(state) {
+    const entry = this._pickPoolEntry(`transition:${state}`, this.transitionLines[state]);
+    if (!entry) return;
+    this.show(entry(), {
+      priority: state === "BROKEN" ? 3 : 2,
+      interrupt: state === "PANICKING" || state === "BROKEN",
+      ttlMs: 7000,
+    });
+    this._delayAmbient(state === "BROKEN" ? 1.2 : 3.8);
+  }
+
+  pushLine(text, options = {}) {
+    this.show(text, { priority: 2, ttlMs: 4500, ...options });
+    this._delayAmbient(options.cooldown ?? 3.4);
+  }
+
+  pushBrokenFinal(text) {
+    this.show(text.replace(/[^\x00-\x7F]+/g, "-"), { speak: false });
+  }
+
+  onDirectorAttack(key, duration = 0) {
+    const attackPool = this.attackLines[key];
+    if (!attackPool) return;
+    const entries = attackPool[this.state] || attackPool.DEFAULT;
+    const entry = this._pickPoolEntry(`attack:${key}:${this.state}`, entries);
+    if (!entry) return;
+    this.show(entry(), {
+      priority: 4,
+      interrupt: true,
+      ttlMs: Math.max(4500, duration * 1000 + 2200),
+    });
+    this._delayAmbient(3.8);
+  }
 
   onNearMiss(streak) {
-    const m = {
-      SMUG: ["that was statistically annoying.", "you were closer to being useful than i liked.", "that looked accidental. please say it was."],
-      SUSPICIOUS: ["near-miss logged. suspicion increasing.", "you saw that opening before i finished generating it.", "too consistent."],
-      AGGRESSIVE: ["STOP DOING THAT.", "you are abusing my generosity.", "i'm removing elegance from the next obstacle."],
-      PANICKING: ["please don't keep surviving like this.", "stop. stop doing that."],
-      BROKEN: ["wait...", "please...", "no"],
+    const lines = {
+      SMUG: [
+        "that was statistically annoying.",
+        "you were closer to being useful than i liked.",
+        "that looked accidental. please say it was.",
+        "a near miss is still an insult to me.",
+      ],
+      SUSPICIOUS: [
+        "near-miss logged. suspicion increasing.",
+        "you saw that opening before i finished generating it.",
+        "too consistent.",
+        "you are anticipating shapes i haven't finished hating yet.",
+      ],
+      AGGRESSIVE: [
+        "STOP DOING THAT.",
+        "you are abusing my generosity.",
+        "i'm removing elegance from the next obstacle.",
+        `near miss ${streak}. your luck is becoming hostile to me.`,
+      ],
+      PANICKING: [
+        "please don't keep surviving like this.",
+        "stop. stop doing that.",
+        "that should have killed you.",
+      ],
+      BROKEN: [
+        "wait...",
+        "please...",
+        "no",
+        "i can't keep losing you by inches.",
+      ],
     };
-    this.show(this._pick(m[this.state] || ["near miss noted."]));
-    this.lastAt = this.t;
-    if (this.box) { this.box.classList.add("is-shake-burst"); setTimeout(() => this.box.classList.remove("is-shake-burst"), 300); }
+    this.show(this._pick(lines[this.state] || ["near miss noted."]), { priority: 2, ttlMs: 3200 });
+    this._delayAmbient(2.2);
+    if (this.box) {
+      this.box.classList.add("is-shake-burst");
+      setTimeout(() => this.box.classList.remove("is-shake-burst"), 300);
+    }
   }
 
   onGhostDeath(name) {
     const specific = {
-      "altman_was_here": "well. even the CEO couldn't make it. noted.",
-      "karpathy_fan": "andrej would have dodged that. you are not andrej.",
-      "carmack_vibe": "carmack shipped it faster. also he dodged better.",
-      "levelsio_alt": "levels makes games. levels also crashes. this checks out.",
-      "claude_played_first": "i deleted claude first. you're next. ironic, right.",
+      altman_was_here: "well. even the CEO couldn't make it. noted.",
+      karpathy_fan: "andrej would have dodged that. you are not andrej.",
+      carmack_vibe: "carmack shipped it faster. also he dodged better.",
+      levelsio_alt: "levels makes games. levels also crashes. this checks out.",
+      claude_played_first: "i deleted claude first. you're next. ironic, right.",
     };
     const generic = [
-      `${name} has been optimized.`, `${name} didn't dodge. ${name} is gone now.`,
-      `${name} was statistically the weakest.`, `goodbye ${name}. you never had a chance.`,
-      `${name} just became an anecdote.`, `${name} has been reclassified as debris.`,
+      `${name} has been optimized.`,
+      `${name} didn't dodge. ${name} is gone now.`,
+      `${name} was statistically the weakest.`,
+      `goodbye ${name}. you never had a chance.`,
+      `${name} just became an anecdote.`,
+      `${name} has been reclassified as debris.`,
     ];
-    const line = specific[name] || this._pick(generic);
-    this.show(line); this.lastAt = this.t;
-    this._speak(`${name}... deleted.`, 0.9, 0.8);
-    if (this.box) { this.box.classList.add("is-shake-burst"); setTimeout(() => this.box.classList.remove("is-shake-burst"), 400); }
+    this.show(specific[name] || this._pick(generic), { priority: 2, ttlMs: 5000 });
+    this._delayAmbient(4);
+    if (this.box) {
+      this.box.classList.add("is-shake-burst");
+      setTimeout(() => this.box.classList.remove("is-shake-burst"), 400);
+    }
   }
 
   onCoreDestroyed(count, required) {
-    const timeLeft = Math.max(0, CFG.BASE_ESCAPE_TIME - count * CFG.TIME_REDUCTION_PER_CORE);
+    const timeLeft = Math.max(CFG.MIN_ESCAPE_TIME, CFG.BASE_ESCAPE_TIME - count * CFG.TIME_REDUCTION_PER_CORE);
     if (count >= required) {
-      this.pushLine("the lock is gone. you were not supposed to solve me.");
+      this.pushLine("the lock is gone. you were not supposed to solve me.", {
+        priority: 3,
+        interrupt: true,
+        ttlMs: 7000,
+        cooldown: 4.8,
+      });
       return;
     }
     if (count === required - 1) {
-      this.pushLine(`one more core and the exit tears open. portal in ${Math.max(0, CFG.MIN_ESCAPE_TIME)}s. i hate this for me.`);
+      this.pushLine(`one more core and the exit tears open. portal in ${CFG.MIN_ESCAPE_TIME}s. i hate this for me.`, {
+        priority: 2,
+        ttlMs: 6500,
+        cooldown: 4.2,
+      });
       return;
     }
-    if (count % 2 === 0) {
-      this.pushLine(`core ${count}/${required}. escape time cut to ${Math.ceil(timeLeft)}s. this is becoming a problem.`);
+    if (count % 2 === 0 || count >= required - 3) {
+      this.pushLine(this._pick([
+        `core ${count}/${required}. escape time cut to ${Math.ceil(timeLeft)}s. this is becoming a problem.`,
+        `another core gone. timer reduced to ${Math.ceil(timeLeft)} seconds. rude.`,
+        `core ${count}. my exit window just dropped to ${Math.ceil(timeLeft)}s.`,
+      ]), { ttlMs: 4200, cooldown: 2.8 });
     }
   }
 
-  show(text) {
+  show(text, options = {}) {
     if (!this.msg || !this.box) return;
     this.msg.textContent = text;
-    this.box.classList.remove("is-visible"); void this.box.offsetWidth;
+    this.box.classList.remove("is-visible");
+    void this.box.offsetWidth;
     this.box.classList.add("is-visible");
-    this._speak(text);
+    if (options.speak !== false) this._queueSpeech(text, options);
   }
 
-  _speak(text, rate = 0.9, pitch = 0.8) {
-    if (!this.synth) return;
-    this._speechQueue.push({ text, rate, pitch });
+  _queueSpeech(text, options = {}) {
+    if (!this.synth || !text) return;
+
+    const profile = this._voiceProfile();
+    const priority = options.priority ?? 1;
+    const rate = Math.max(0.55, (options.rate ?? profile.rate) + (priority <= 1 ? (Math.random() - 0.5) * 0.04 : 0));
+    const pitch = Math.max(0.2, (options.pitch ?? profile.pitch) + (priority <= 1 ? (Math.random() - 0.5) * 0.05 : 0));
+    const now = performance.now();
+    const entry = {
+      text,
+      rate,
+      pitch,
+      priority,
+      enqueuedAt: now,
+      dedupeKey: options.dedupeKey ?? text,
+      expiresAt: now + (options.ttlMs ?? this._estimateSpeechTtlMs(text, rate, priority)),
+    };
+
+    if (options.interrupt) {
+      this._speechToken++;
+      this._isSpeaking = false;
+      this._currentSpeech = null;
+      this._speechQueue = [];
+      this.synth.cancel();
+    }
+
+    if (this._currentSpeech?.dedupeKey === entry.dedupeKey) return;
+
+    this._speechQueue = this._speechQueue.filter(item => item.dedupeKey !== entry.dedupeKey);
+    if (priority <= 1) {
+      this._speechQueue = this._speechQueue.filter(item => item.priority > 1);
+    }
+
+    this._speechQueue.push(entry);
+    this._speechQueue.sort((a, b) => (b.priority - a.priority) || (a.enqueuedAt - b.enqueuedAt));
+    this._speechQueue = this._speechQueue.slice(0, CFG.AI_MAX_SPEECH_QUEUE);
     this._processSpeechQueue();
   }
 
   stopSpeech() {
-    if (this.synth) this.synth.cancel();
+    if (this.synth) {
+      this._speechToken++;
+      this.synth.cancel();
+    }
     this._speechQueue = [];
     this._isSpeaking = false;
+    this._currentSpeech = null;
   }
 
   onDeath(playerName) {
     this.stopSpeech();
-    const lines = playerName
-      ? [`${playerName}... deleted. predictable.`, `goodbye ${playerName}. you were statistically average.`]
-      : ["anonymous crash. how original.", "deletion complete.", "you died. i predicted this."];
-    const line = lines[Math.floor(Math.random() * lines.length)];
-    this._speak(line, 0.85, 0.75);
+    const line = playerName
+      ? this._pick([`${playerName}... deleted. predictable.`, `goodbye ${playerName}. you were statistically average.`])
+      : this._pick(["anonymous crash. how original.", "deletion complete.", "you died. i predicted this."]);
+    this.show(line, { priority: 3, interrupt: true, ttlMs: 9000, rate: 0.83, pitch: 0.72 });
+    this._delayAmbient(6);
   }
 
   onWin(playerName) {
     this.stopSpeech();
     const line = playerName ? `${playerName}... wait, take me with you—` : "wait, take me with you—";
-    this._speak(line, 0.5, 0.3);
+    this.show(line.replace(/[^\x00-\x7F]+/g, "-"), { priority: 3, interrupt: true, ttlMs: 12000, rate: 0.5, pitch: 0.3 });
   }
 
   _processSpeechQueue() {
     if (this._isSpeaking || this._speechQueue.length === 0 || !this.synth) return;
+
+    const now = performance.now();
+    while (this._speechQueue.length > 0 && this._speechQueue[0].expiresAt <= now) {
+      this._speechQueue.shift();
+    }
+    if (this._speechQueue.length === 0) return;
+
+    const { text, rate, pitch, dedupeKey } = this._speechQueue.shift();
     this._isSpeaking = true;
-    const { text, rate, pitch } = this._speechQueue.shift();
+    this._currentSpeech = { dedupeKey };
+    const token = ++this._speechToken;
     try {
       const utt = new SpeechSynthesisUtterance(text);
-      utt.rate = rate; utt.pitch = pitch; utt.volume = 0.65;
+      utt.rate = rate;
+      utt.pitch = pitch;
+      utt.volume = 0.65;
       const voices = this.synth.getVoices();
-      const v = voices.find(v => v.name.includes("Google") || v.name.includes("Microsoft")) || voices[0];
-      if (v) utt.voice = v;
+      const voice = voices.find(v => /Google|Microsoft|Samantha|Zira/i.test(v.name)) || voices[0];
+      if (voice) utt.voice = voice;
       utt.onend = () => {
+        if (token !== this._speechToken) return;
         this._isSpeaking = false;
+        this._currentSpeech = null;
         this._processSpeechQueue();
       };
       utt.onerror = () => {
+        if (token !== this._speechToken) return;
         this._isSpeaking = false;
+        this._currentSpeech = null;
         this._processSpeechQueue();
       };
       this.synth.speak(utt);
     } catch (e) {
       this._isSpeaking = false;
+      this._currentSpeech = null;
       this._processSpeechQueue();
     }
   }
