@@ -1126,8 +1126,10 @@ function buildThreeApp(container) {
     ).add(kick);
 
     if (aiDirector.isFragmentLight()) {
-      camTarg.x += (Math.random() - 0.5) * 1.2;
-      camTarg.y += (Math.random() - 0.5) * 1.2;
+      camTarg.x += (Math.random() - 0.5) * 4.8;
+      camTarg.y += (Math.random() - 0.5) * 4.8;
+      camera.position.x += (Math.random() - 0.5) * 2.4;
+      camera.position.y += (Math.random() - 0.5) * 2.4;
     }
 
     camLerp.lerp(camTarg, 0.1);
@@ -1217,16 +1219,36 @@ function buildThreeApp(container) {
 
     // Post FX
     let chrAmt = 0.002;
-    if (aiDirector.isFragmentLight()) chrAmt = 0.009;
+    if (aiDirector.isFragmentLight()) chrAmt = 0.024 + Math.sin(performance.now() * 0.008) * 0.012;
     else if (aiTroll?.state === "BROKEN") chrAmt = THREE.MathUtils.mapLinear(diffT, 55, 65, 0.004, 0.016);
     else if (aiTroll?.state === "PANICKING") chrAmt = 0.005;
-    chromaPass.uniforms.amount.value = THREE.MathUtils.lerp(chromaPass.uniforms.amount.value, chrAmt, 0.06);
+    chromaPass.uniforms.amount.value = THREE.MathUtils.lerp(chromaPass.uniforms.amount.value, chrAmt, 0.12);
 
     let vigDark = 1.05, vigRed = 0;
     if (health < CFG.PLAYER_HEALTH * 0.4) { vigDark = 1.45; vigRed = 0.3; }
     if (aiTroll?.state === "AGGRESSIVE") { vigDark = Math.max(vigDark, 1.3); vigRed = Math.max(vigRed, 0.4); }
     else if (aiTroll?.state === "PANICKING") { vigDark = Math.max(vigDark, 1.5); vigRed = Math.max(vigRed, 0.2); }
     else if (aiTroll?.state === "BROKEN") { vigDark = Math.max(vigDark, 1.8); }
+    
+    // Fragment Light visual glitching
+    if (aiDirector.isFragmentLight()) {
+      const glitchIntensity = Math.sin(performance.now() * 0.012) * 0.5 + 0.5;
+      vigDark = Math.max(vigDark, 1.2 + glitchIntensity * 0.8);
+      vigRed = Math.max(vigRed, glitchIntensity * 0.6);
+      
+      // Random screen flicker
+      if (Math.random() < 0.08) {
+        G.whiteFlash.style.opacity = (Math.random() * 0.15).toString();
+        setTimeout(() => { G.whiteFlash.style.opacity = "0"; }, 30 + Math.random() * 40);
+      }
+      
+      // Random color channel distortion
+      if (Math.random() < 0.12) {
+        const colorShift = Math.random() * 0.3 - 0.15;
+        vigRed = Math.max(0, Math.min(1, vigRed + colorShift));
+      }
+    }
+    
     vigPass.uniforms.darkness.value = THREE.MathUtils.lerp(vigPass.uniforms.darkness.value, vigDark, 0.045);
     vigPass.uniforms.redTint.value = THREE.MathUtils.lerp(vigPass.uniforms.redTint.value, vigRed, 0.045);
 
