@@ -2240,7 +2240,7 @@ class AITroll {
     const greeting = this.name
       ? this._pick([
           `oh. ${this.name}. let's see how long you last.`,
-          `${this.name}. bold of you to sign your failure.`,
+          `${this.name}. bold choice to sign your failure.`,
           `welcome, ${this.name}. i prepared something special for you.`,
         ])
       : this._pick([
@@ -2251,7 +2251,7 @@ class AITroll {
     this.show(greeting, { priority: 3, interrupt: true, ttlMs: 4500 });
     setTimeout(() => {
       this.show(rules, { priority: 3, interrupt: true, ttlMs: 8000 });
-    }, 2500);
+    }, 5000);
     this.introActive = false;
     this.nextAutoLineAt = this.t + 6 + Math.random() * 1.5;
     this.nextGlobalLineAt = CFG.AI_GLOBAL_LINE_INTERVAL;
