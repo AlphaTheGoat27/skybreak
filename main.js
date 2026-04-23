@@ -1504,7 +1504,7 @@ function deactivateAll(...pools) {
 }
 
 function spawnObstacles(rings, walls, firewalls, windmills, playerZ, density, state, t, targX, targY) {
-  const SPAWN_DIST = 210, RECYCLE_BEHIND = 22, Z_SPACING = 120, MAX_ACTIVE = 3;
+  const SPAWN_DIST = 210, RECYCLE_BEHIND = 22, Z_SPACING = 120, MAX_ACTIVE = 2;
   const gapCfg = getGapCfg(t);
 
   // Recycle obstacles behind player
