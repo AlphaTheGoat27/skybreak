@@ -14,7 +14,7 @@ SKYBREAK isn't just another endless runner. It's a **survival shooter with a nar
 
 ## How to Play
 
-**Objective:** Destroy 20 glitch cores OR survive 180 seconds to unlock the portal and escape
+**Objective:** Destroy 10 glitch cores OR survive 180 seconds to unlock the portal and escape
 
 **Controls:**
 - **WASD** or **Arrow Keys** - Move your ship
@@ -23,8 +23,8 @@ SKYBREAK isn't just another endless runner. It's a **survival shooter with a nar
 - **Touch** - Mobile support (right side to shoot)
 
 **Hybrid Win Condition:**
-- Each core destroyed reduces escape time by 5 seconds
-- Destroy 20 cores to instantly unlock the portal
+- Each core destroyed reduces escape time by 10 seconds
+- Destroy 10 cores to instantly unlock the portal
 - Or survive the remaining time to unlock it
 
 **Health System:**
@@ -118,7 +118,7 @@ The AI sabotages you with repeated attacks throughout the 3-minute run. Each att
 ### **Glitch Cores**
 - Pink/red octahedrons that float toward you
 - **Shoot them** to destroy and reduce escape time
-- Each core destroyed = -5 seconds from escape requirement
+- Each core destroyed = -10 seconds from escape requirement
 - Contact with cores deals damage
 
 ### **Disruption Meter**
@@ -136,7 +136,7 @@ The AI sabotages you with repeated attacks throughout the 3-minute run. Each att
 
 This is the Gold Prize sequence designed for maximum impact:
 
-1. **Portal unlocks** when you destroy 20 cores OR survive the required time
+1. **Portal unlocks** when you destroy 10 cores OR survive the required time
 2. **Rainbow torus portal** appears ahead of you
 3. **Camera FOV** increases for tunnel vision effect
 4. **AI breakdown** with overlapping fragmented text

@@ -11,8 +11,8 @@ import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 const CFG = {
   // Hybrid win condition
   BASE_ESCAPE_TIME: 180,
-  TIME_REDUCTION_PER_CORE: 5,
-  CORES_FOR_INSTANT_WIN: 20,
+  TIME_REDUCTION_PER_CORE: 10,
+  CORES_FOR_INSTANT_WIN: 10,
   MIN_ESCAPE_TIME: 80,
 
   // Player
@@ -164,8 +164,8 @@ app.innerHTML = `
   <p class="game-subtitle">AI REALITY COLLAPSE</p>
   <div id="intro-label" class="intro-label"></div>
   <div id="intro-hint" class="intro-hint">
-    <span>DESTROY <strong>20 CORES</strong> OR SURVIVE <strong>180s</strong> TO UNLOCK THE PORTAL</span>
-    <span>EACH CORE DESTROYED CUTS <strong>5s</strong> FROM ESCAPE TIME</span>
+    <span>DESTROY <strong>10 CORES</strong> OR SURVIVE <strong>180s</strong> TO UNLOCK THE PORTAL</span>
+    <span>EACH CORE DESTROYED CUTS <strong>10s</strong> FROM ESCAPE TIME</span>
   </div>
   <form id="intro-form" class="intro-form">
     <input id="intro-input" class="intro-input" type="text" placeholder="enter pilot name... or leave blank" maxlength="16" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false">
@@ -308,7 +308,7 @@ let _scene; // set by buildThreeApp
 class Bullet {
   constructor(pos, dir, target = null) {
     const geo = new THREE.SphereGeometry(0.2, 8, 8);
-    const mat = new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.95 });
+    const mat = new THREE.MeshBasicMaterial({ color: 0xffd700, transparent: true, opacity: 0.95 });
     this.mesh = new THREE.Mesh(geo, mat);
     this.mesh.position.copy(pos);
     _scene.add(this.mesh);
@@ -325,7 +325,7 @@ class Bullet {
     for (let i = 0; i < 6; i++) {
       const t = new THREE.Mesh(
         new THREE.SphereGeometry(0.07 + i * 0.015, 5, 5),
-        new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: Math.max(0, 0.55 - i * 0.08) })
+        new THREE.MeshBasicMaterial({ color: 0xffd700, transparent: true, opacity: Math.max(0, 0.55 - i * 0.08) })
       );
       t.position.copy(pos);
       _scene.add(t);
@@ -354,13 +354,13 @@ class Bullet {
   }
 
   checkHit(ent) {
-    if (this.mesh.position.distanceTo(ent.mesh.position) < 14) return true;
+    if (this.mesh.position.distanceTo(ent.mesh.position) < 7) return true;
     const seg = this.mesh.position.clone().sub(this.prev);
     const lenSq = Math.max(seg.lengthSq(), 0.0001);
     const toEnt = ent.mesh.position.clone().sub(this.prev);
     const t = THREE.MathUtils.clamp(toEnt.dot(seg) / lenSq, 0, 1);
     const closest = this.prev.clone().addScaledVector(seg, t);
-    return closest.distanceTo(ent.mesh.position) < 14;
+    return closest.distanceTo(ent.mesh.position) < 7;
   }
 
   destroy() {
@@ -552,7 +552,7 @@ function buildThreeApp(container) {
   }
 
   function getAimTarget(from) {
-    // Project mouse coordinates to get target direction from camera
+    // Mouse-based aiming - shoot where the cursor points
     const mouseVec = new THREE.Vector3(ptrX, ptrY, 0.5);
     mouseVec.unproject(camera);
     const dir = mouseVec.sub(camera.position).normalize();
@@ -560,6 +560,20 @@ function buildThreeApp(container) {
   }
 
   // ── CORES (GLITCH ENTITIES) ───────────────────────────────────────
+  // Check if spawn position is clear of obstacles (min 80 units clearance)
+  function isSpawnClear(z, rings, walls, firewalls, windmills) {
+    const MIN_CLEARANCE = 80;
+    for (const pool of [rings, walls, firewalls, windmills]) {
+      if (!pool) continue;
+      for (const o of pool) {
+        if (o.active && Math.abs(o.group.position.z - z) < MIN_CLEARANCE) {
+          return false; // Too close to an obstacle
+        }
+      }
+    }
+    return true;
+  }
+
   function spawnCore(playerZ, parent = null, index = 0, waveId = -1) {
     if (cores.length >= CFG.MAX_CORES) return;
     const group = new THREE.Group();
@@ -651,21 +665,41 @@ function buildThreeApp(container) {
         continue;
       }
 
-      // Bullet collision
-      for (let b = bullets.length - 1; b >= 0; b--) {
-        const bullet = bullets[b];
-        if (!bullet.active) continue;
-        if (!bullet.checkHit(c)) continue;
+    }
 
+    // Bullet collision - find closest core for each bullet (only hit one target)
+    for (let b = bullets.length - 1; b >= 0; b--) {
+      const bullet = bullets[b];
+      if (!bullet.active) continue;
+
+      // Find the closest core to this bullet
+      let closestCore = null;
+      let closestDist = Infinity;
+      let closestIdx = -1;
+
+      for (let i = cores.length - 1; i >= 0; i--) {
+        const c = cores[i];
+        if (!c.active) continue;
+
+        // Get distance from bullet to core
+        const dist = bullet.mesh.position.distanceTo(c.mesh.position);
+        if (dist < 7 && dist < closestDist) {
+          closestDist = dist;
+          closestCore = c;
+          closestIdx = i;
+        }
+      }
+
+      // Only hit the single closest core
+      if (closestCore && bullet.checkHit(closestCore)) {
         bullet.destroy();
         bullets.splice(b, 1);
 
-        // Only harvest if this wave hasn't been hit yet
-        if (ud.waveId !== -1 && !harvestedWaves.has(ud.waveId)) {
-          harvestedWaves.add(ud.waveId);
-          spawnParticles(c.mesh.position.clone(), 0x00ffff);
-          _scene.remove(c.mesh);
-          cores.splice(i, 1);
+        // All cores are individually destroyable - cap at win condition
+        if (cdRef.val < CFG.CORES_FOR_INSTANT_WIN) {
+          spawnParticles(closestCore.mesh.position.clone(), 0x00ffff);
+          _scene.remove(closestCore.mesh);
+          cores.splice(closestIdx, 1);
           cdRef.val++;
 
           // Disruption gain
@@ -678,14 +712,7 @@ function buildThreeApp(container) {
           updateHUD(cdRef.val, escapeTimeNeeded);
 
           if (cdRef.val >= CFG.CORES_FOR_INSTANT_WIN) unlockPortal(cdRef.val);
-          break; // Exit bullet loop after collection
-        } else {
-          // Siblings ignore bullets once the wave is harvested
-          // Or we can play a small "ping" sound/effect
-          c.mesh.scale.setScalar(1.05);
-          setTimeout(() => { if (c.mesh && c.active) c.mesh.scale.setScalar(1); }, 50);
         }
-        break;
       }
     }
 
@@ -693,10 +720,14 @@ function buildThreeApp(container) {
   }
 
   function spawnParticles(pos, color) {
+    // Rainbow color palette for impacts
+    const rainbowColors = [0xff0000, 0xff7f00, 0xffff00, 0x00ff00, 0x0000ff, 0x4b0082, 0x9400d3, 0xff1493, 0x00ffff, 0xffd700];
     for (let i = 0; i < 14; i++) {
+      // Use rainbow colors if no specific color provided, otherwise use the passed color
+      const particleColor = color ? rainbowColors[Math.floor(Math.random() * rainbowColors.length)] : 0xffffff;
       const p = new THREE.Mesh(
         new THREE.BoxGeometry(0.22, 0.22, 0.22),
-        new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.95 })
+        new THREE.MeshBasicMaterial({ color: particleColor, transparent: true, opacity: 0.95 })
       );
       p.position.copy(pos);
       _scene.add(p);
@@ -914,7 +945,7 @@ function buildThreeApp(container) {
           location.href = `${CFG.WEBRING_URL}?${p}`;
         }, 650);
       });
-    }, 1050);
+    }, 8000);
   }
 
   // ── RESET ─────────────────────────────────────────────────────────
@@ -1052,12 +1083,13 @@ function buildThreeApp(container) {
     diffT += dt;
 
     // ── INPUT ──────────────────────────────────────────────────────
+    // Ship movement: WASD/Arrows/Touch only - mouse is for aiming only
     let rawX = ((keys.has("KeyD") || keys.has("ArrowRight")) ? 1 : 0)
              - ((keys.has("KeyA") || keys.has("ArrowLeft")) ? 1 : 0)
-             + touchDX + (Math.abs(ptrX) > 0.1 ? ptrX * 0.5 : 0);
+             + touchDX;
     let rawY = ((keys.has("KeyW") || keys.has("ArrowUp")) ? 1 : 0)
              - ((keys.has("KeyS") || keys.has("ArrowDown")) ? 1 : 0)
-             + touchDY + (Math.abs(ptrY) > 0.1 ? ptrY * 0.5 : 0);
+             + touchDY;
     touchDX *= 0.84; touchDY *= 0.84;
 
     if (ctrlsInverted) { rawX *= -1; rawY *= -1; }
@@ -1151,7 +1183,11 @@ function buildThreeApp(container) {
       currentWaveId++;
       for (let i = 0; i < CFG.CORE_SPAWN_COUNT; i++) {
         if (cores.length < CFG.MAX_CORES) {
-          spawnCore(shipAnchor.position.z, null, i, currentWaveId);
+          // Check if spawn position is clear of obstacles
+          const spawnZ = shipAnchor.position.z - 210 - (i * 8);
+          if (isSpawnClear(spawnZ, rings, walls, firewalls, windmills)) {
+            spawnCore(shipAnchor.position.z, null, i, currentWaveId);
+          }
         }
       }
     }
@@ -1468,9 +1504,10 @@ function deactivateAll(...pools) {
 }
 
 function spawnObstacles(rings, walls, firewalls, windmills, playerZ, density, state, t, targX, targY) {
-  const SPAWN_DIST = 210, RECYCLE_BEHIND = 22;
+  const SPAWN_DIST = 210, RECYCLE_BEHIND = 22, Z_SPACING = 120, MAX_ACTIVE = 3;
   const gapCfg = getGapCfg(t);
 
+  // Recycle obstacles behind player
   for (const p of [rings, walls, firewalls, windmills]) {
     if (!p) continue;
     for (const o of p) {
@@ -1480,10 +1517,52 @@ function spawnObstacles(rings, walls, firewalls, windmills, playerZ, density, st
     }
   }
 
+  // Count active obstacles across all pools
+  let activeObstacleCount = 0;
+  for (const p of [rings, walls, firewalls, windmills]) {
+    if (!p) continue;
+    for (const o of p) if (o.active) activeObstacleCount++;
+  }
+
+  // Check for any active obstacle within Z_SPACING of the given Z position
+  function hasObstacleNear(z, excludeType = null) {
+    for (const p of [rings, walls, firewalls, windmills]) {
+      if (!p) continue;
+      for (const o of p) {
+        if (o.active && Math.abs(o.group.position.z - z) < Z_SPACING) {
+          if (excludeType) {
+            // Check if it's a different type
+            const oType = o.isCrusher !== undefined ? "wall" :
+                         o.segs !== undefined ? "ring" :
+                         o.spinner !== undefined ? "windmill" : "firewall";
+            if (oType !== excludeType) return true;
+          } else {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
+  }
+
+  // Check if a wall exists within range ahead (for windmill spawning)
+  function hasWallWithinRange(z, range) {
+    for (const o of walls) {
+      if (o.active && o.group.position.z < z && o.group.position.z > z - range) return true;
+    }
+    return false;
+  }
+
   while (state.nextZ > playerZ - SPAWN_DIST) {
     const z = state.nextZ;
     const roll = state.rng();
     if (t >= 10 && state.rng() > density) { state.nextZ -= getSpawnGap(t); continue; }
+
+    // Cap simultaneous active obstacle count
+    if (activeObstacleCount >= MAX_ACTIVE) {
+      state.nextZ -= getSpawnGap(t);
+      continue;
+    }
 
     let type;
     const force0 = roll < 0.18;
@@ -1501,6 +1580,21 @@ function spawnObstacles(rings, walls, firewalls, windmills, playerZ, density, st
       else type = "windmill";
     }
 
+    // Inter-obstacle Z-spacing: skip if different obstacle type exists within threshold
+    if (hasObstacleNear(z, type)) {
+      state.nextZ -= getSpawnGap(t);
+      continue;
+    }
+
+    // Windmill-wall separation: skip windmills if wall is within 200 units ahead
+    if (type === "windmill" && hasWallWithinRange(z, 200)) {
+      state.nextZ -= getSpawnGap(t);
+      continue;
+    }
+
+    let placedObstacle = false;
+    let isCrusher = false;
+
     if (type === "ring") {
       const free = rings.find(o => !o.active);
       if (free) {
@@ -1515,6 +1609,7 @@ function spawnObstacles(rings, walls, firewalls, windmills, playerZ, density, st
           seg.visible = rel >= gap;
         });
         free.group.visible = true; free.active = true;
+        placedObstacle = true;
       }
     } else if (type === "wall") {
       const free = walls.find(o => !o.active);
@@ -1528,9 +1623,11 @@ function spawnObstacles(rings, walls, firewalls, windmills, playerZ, density, st
         free.rgt.position.set(pX + gHX + 4, pY, 0);
         free.group.position.set(0, 0, z);
         free.isCrusher = state.rng() > 0.38 && t >= 25;
+        isCrusher = free.isCrusher;
         free.phase = state.rng() * Math.PI * 2;
         free.crushSpd = 1.3 + state.rng() * (t / 60); // Speed up crushers over time
         free.group.visible = true; free.active = true;
+        placedObstacle = true;
       }
     } else if (type === "firewall") {
       const free = firewalls.find(o => !o.active);
@@ -1539,6 +1636,7 @@ function spawnObstacles(rings, walls, firewalls, windmills, playerZ, density, st
         free.group.rotation.z = state.rng() * Math.PI * 2;
         free.health = 1; free.core.visible = true;
         free.group.visible = true; free.active = true;
+        placedObstacle = true;
       }
     } else if (type === "windmill") {
       const free = windmills.find(o => !o.active);
@@ -1547,25 +1645,37 @@ function spawnObstacles(rings, walls, firewalls, windmills, playerZ, density, st
         free.spinner.rotation.z = state.rng() * Math.PI;
         free.rotSpd = (state.rng() > 0.5 ? 1 : -1) * (1.1 + state.rng() * 1.6);
         free.group.visible = true; free.active = true;
+        placedObstacle = true;
       }
     }
 
-    state.nextZ -= getSpawnGap(t);
+    if (placedObstacle) {
+      activeObstacleCount++;
+      // Double-gap after crusher walls for recovery space
+      if (isCrusher) {
+        state.nextZ -= getSpawnGap(t) * 2.2;
+      } else {
+        state.nextZ -= getSpawnGap(t);
+      }
+    } else {
+      state.nextZ -= getSpawnGap(t);
+    }
   }
 }
 
 function getSpawnGap(t) {
   if (t < 15) return 285; if (t < 40) return 185;
-  if (t < 70) return 118; if (t < 110) return 88;
-  if (t < 150) return 72; return 65;
+  if (t < 70) return 160; if (t < 110) return 130;
+  if (t < 150) return 110; return 95;
 }
 
 function getGapCfg(t) {
   if (t < 15) return { ringGap: 2, wallGapHX: 5.2, wallGapHY: 5.4 };
   if (t < 40) return { ringGap: 2, wallGapHX: THREE.MathUtils.mapLinear(t,15,40,5.2,4.8), wallGapHY: THREE.MathUtils.mapLinear(t,15,40,5.4,5.0) };
   if (t < 80) return { ringGap: 1, wallGapHX: THREE.MathUtils.mapLinear(t,40,80,4.8,4.2), wallGapHY: THREE.MathUtils.mapLinear(t,40,80,5.0,4.4) };
-  if (t < 130) return { ringGap: 1, wallGapHX: THREE.MathUtils.mapLinear(t,80,130,4.2,3.6), wallGapHY: THREE.MathUtils.mapLinear(t,80,130,4.4,3.8) };
-  return { ringGap: 1, wallGapHX: 3.4, wallGapHY: 3.6 };
+  if (t < 130) return { ringGap: 1, wallGapHX: THREE.MathUtils.mapLinear(t,80,130,4.2,4.2), wallGapHY: THREE.MathUtils.mapLinear(t,80,130,4.4,4.5) };
+  // Floor values widened for late game - difficulty from speed/density not impossible gaps
+  return { ringGap: 1, wallGapHX: 4.2, wallGapHY: 4.5 };
 }
 
 function animateObstacles(rings, walls, windmills, t, dt) {
@@ -1586,12 +1696,12 @@ function forceCorridor(walls, playerZ) {
   for (const o of walls) {
     if (o.active || placed >= offsets.length) continue;
     const off = offsets[placed];
-    o.top.position.set(off.x, off.y + 6.5, 0);
-    o.bot.position.set(off.x, off.y - 6.5, 0);
-    o.lft.position.set(off.x - 7.5, off.y, 0);
-    o.rgt.position.set(off.x + 7.5, off.y, 0);
-    o.gapHY = 6.5; o.basePY = off.y; o.isCrusher = false;
-    o.group.position.set(0, 0, playerZ - 110 - placed * 45);
+    o.top.position.set(off.x, off.y + 10, 0);
+    o.bot.position.set(off.x, off.y - 10, 0);
+    o.lft.position.set(off.x - 11, off.y, 0);
+    o.rgt.position.set(off.x + 11, off.y, 0);
+    o.gapHY = 10; o.basePY = off.y; o.isCrusher = false;
+    o.group.position.set(0, 0, playerZ - 350 - placed * 45);
     o.group.visible = true; o.active = true;
     placed++;
   }
@@ -2223,7 +2333,7 @@ class AITroll {
   }
 
   pushFirstLine() {
-    const rules = "rules: destroy 20 cores or survive 180 seconds to unlock the portal. each core cuts 5 seconds.";
+    const rules = "rules: destroy 10 cores or survive 180 seconds to unlock the portal. each core cuts 10 seconds.";
     if (GLOBAL_STATS.deathsThisSession > 0) {
       const retryMsg = this._pick([
         "you have come to try again. admirable. foolish. but admirable.",
