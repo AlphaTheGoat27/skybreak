@@ -22,16 +22,22 @@ const CFG = {
   INVULN_TIME: 1.1,
 
   // Shooting
-  BULLET_SPEED: 145,
-  BULLET_LIFETIME: 2.6,
-  SHOOT_COOLDOWN: 1.2,
+  BULLET_SPEED: 200,
+  BULLET_LIFETIME: 3.0,
+  SHOOT_COOLDOWN: 0.35,
   DISRUPTION_GAIN_PER_HIT: 0.09,
 
   // AI Bots (replicated glitch entities)
   MAX_AI_BOTS: 40,
   CORE_SPAWN_CHANCE_BASE: 0.04,
-  AI_BOT_SPAWN_INTERVAL: 5,
-  AI_BOT_SPAWN_COUNT: 3,
+  AI_BOT_SPAWN_INTERVAL: 8,
+  AI_BOT_MIN_SPAWN_COUNT: 1,
+  AI_BOT_MAX_SPAWN_COUNT: 3,
+  AI_BOT_SPAWN_DISTANCE: 380,
+  AI_BOT_WAVE_Z_SPACING: 28,
+  AI_BOT_OBSTACLE_CLEARANCE: 240,
+  AI_BOT_OBSTACLE_GRACE_PERIOD: 2.5,
+  AI_BOT_SPAWN_RETRY_DELAY: 0.75,
 
   // Storage
   KEY_NAME: "skybreak_name",
@@ -182,9 +188,11 @@ app.innerHTML = `
     <div class="intro-narrative">SHOOT THE GLOWING AI BOTS TO BREAK THE LOCK EARLY.</div>
     <div class="intro-narrative accent">REACH THE PORTAL BEFORE THE VOID TAKES YOU.</div>
     <div class="intro-key">
+      <span>MOUSE MOVE = AIM</span>
+      <span>SPACE / CLICK = SHOOT</span>
+      <span>WASD = MOVE SHIP</span>
       <span>PINK AI BOT = SHOOT IT</span>
-      <span>PORTAL = FLY THROUGH IT</span>
-      <span>WASD + SPACE / CLICK</span>
+      <span>PORTAL RING = FLY THROUGH IT</span>
     </div>
   </div>
   <form id="intro-form" class="intro-form">
@@ -417,7 +425,7 @@ class Bullet {
 
     // Trail
     this.trail = [];
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 10; i++) {
       const t = new THREE.Mesh(
         new THREE.SphereGeometry(0.07 + i * 0.015, 5, 5),
         new THREE.MeshBasicMaterial({ color: 0xffd700, transparent: true, opacity: Math.max(0, 0.55 - i * 0.08) })
@@ -555,19 +563,27 @@ function buildThreeApp(container) {
   const onMouseDown = e => { mouseDown = true; if (e.button === 0) shoot(); };
   const onMouseUp = () => mouseDown = false;
 
+  let touchShootHeld = false;
+
   const onTouchStart = e => {
     touchOn = true;
     lastTX = e.touches[0].clientX; lastTY = e.touches[0].clientY;
     hideMobileTutorial();
-    if (lastTX > innerWidth / 2) shoot();
+    if (lastTX > innerWidth / 2) { touchShootHeld = true; shoot(); }
   };
   const onTouchMove = e => {
     if (!touchOn) return;
+    lastTX = e.touches[0].clientX; lastTY = e.touches[0].clientY;
     touchDX = (e.touches[0].clientX - lastTX) / innerWidth * 5.5;
     touchDY = -(e.touches[0].clientY - lastTY) / innerHeight * 5.5;
     lastTX = e.touches[0].clientX; lastTY = e.touches[0].clientY;
+    // Mobile aim via right-half touch position
+    if (lastTX > innerWidth / 2) {
+      ptrX = THREE.MathUtils.clamp((lastTX / innerWidth) * 2 - 1, -1, 1);
+      ptrY = THREE.MathUtils.clamp(-((lastTY / innerHeight) * 2 - 1), -1, 1);
+    }
   };
-  const onTouchEnd = () => { touchOn = false; touchDX = 0; touchDY = 0; };
+  const onTouchEnd = () => { touchOn = false; touchDX = 0; touchDY = 0; touchShootHeld = false; };
 
   const onResize = () => {
     camera.aspect = innerWidth / innerHeight;
@@ -613,7 +629,9 @@ function buildThreeApp(container) {
   let cores = [];
   let lastContactAt = 0;
   let lastCollMs = 0, lastNearMs = 0, nearStreak = 0;
-  let coreSpawnTimer = 0, currentWaveId = 0;
+  let coreSpawnTimer = 3, currentWaveId = 0;
+  let lastObstacleClearedAt = -99;
+  let portalSafeZ = null;
   let harvestedWaves = new Set();
   let crashCount = 0, assistMode = false, assistEnd = 0;
 
@@ -648,17 +666,44 @@ function buildThreeApp(container) {
   }
 
   function getAimTarget(from) {
-    // Mouse-based aiming - shoot where the cursor points
     const mouseVec = new THREE.Vector3(ptrX, ptrY, 0.5);
     mouseVec.unproject(camera);
-    const dir = mouseVec.sub(camera.position).normalize();
-    return { target: null, dir };
+    const baseDir = mouseVec.sub(camera.position).normalize();
+
+    // Snap assist: find nearest core within 25deg of aim direction
+    const SNAP_CONE_RAD = THREE.MathUtils.degToRad(25);
+    let bestCore = null;
+    let bestAngle = SNAP_CONE_RAD;
+
+    for (const c of cores) {
+      if (!c.active) continue;
+      const dist = c.mesh.position.distanceTo(from);
+      if (dist > 150) continue; // Only lock on visible cores
+      const toCore = c.mesh.position.clone().sub(from).normalize();
+      const angle = baseDir.angleTo(toCore);
+      if (angle < bestAngle) {
+        bestAngle = angle;
+        bestCore = c;
+      }
+    }
+
+    if (bestCore) {
+      const dist = bestCore.mesh.position.distanceTo(from);
+      const travelTime = dist / CFG.BULLET_SPEED;
+      const predicted = bestCore.mesh.position.clone().add(
+        new THREE.Vector3(0, 0, bestCore.mesh.userData.speed * travelTime)
+      );
+      const snapDir = predicted.sub(from).normalize();
+      return { target: bestCore, dir: snapDir };
+    }
+
+    return { target: null, dir: baseDir };
   }
 
   // ── CORES (GLITCH ENTITIES) ───────────────────────────────────────
-  // Check if spawn position is clear of obstacles (min 80 units clearance)
+  // Check if spawn position is clear of obstacles with a generous buffer.
   function isSpawnClear(z, rings, walls, firewalls, windmills) {
-    const MIN_CLEARANCE = 80;
+    const MIN_CLEARANCE = CFG.AI_BOT_OBSTACLE_CLEARANCE;
     for (const pool of [rings, walls, firewalls, windmills]) {
       if (!pool) continue;
       for (const o of pool) {
@@ -700,7 +745,7 @@ function buildThreeApp(container) {
     return spr;
   }
 
-  function spawnCore(playerZ, parent = null, index = 0, waveId = -1) {
+  function spawnCore(playerZ, parent = null, index = 0, waveId = -1, waveCount = CFG.AI_BOT_MAX_SPAWN_COUNT) {
     if (cores.length >= CFG.MAX_AI_BOTS) return;
     const group = new THREE.Group();
 
@@ -709,9 +754,16 @@ function buildThreeApp(container) {
 
     const core = new THREE.Mesh(
       new THREE.OctahedronGeometry(2.5, 0),
-      new THREE.MeshBasicMaterial({ color: 0xff0066, wireframe: true, transparent: true, opacity: 0.95 })
+      new THREE.MeshBasicMaterial({ color: 0xff0066, wireframe: true, transparent: true, opacity: 1.0 })
     );
     group.add(core);
+
+    // Bright center dot for visibility
+    const dot = new THREE.Mesh(
+      new THREE.SphereGeometry(0.8, 6, 6),
+      new THREE.MeshBasicMaterial({ color: 0xff88bb })
+    );
+    group.add(dot);
 
     const ring = new THREE.Mesh(
       new THREE.TorusGeometry(3.5, 0.38, 4, 8),
@@ -746,15 +798,15 @@ function buildThreeApp(container) {
       group.position.y += (Math.random() - 0.5) * 5;
       group.position.z += (Math.random() - 0.5) * 6;
     } else {
-      // Formation spawning: Spread them out in a tighter, staggered formation with randomness
-      const count = CFG.AI_BOT_SPAWN_COUNT;
+      // Formation spawning: Spread the wave out while keeping it readable.
+      const count = Math.max(1, waveCount);
       const waveAngle = ((waveId * 1.5) % (Math.PI * 2)); // Dynamic rotation per wave
       const angle = (index / count) * Math.PI * 2 + waveAngle + (Math.random() - 0.5) * 0.4;
       const radius = 11 + Math.random() * 5; // Variation in radius
       group.position.set(
         Math.cos(angle) * radius,
         Math.sin(angle) * radius * 0.75,
-        playerZ - 210 - (index * 8) + (Math.random() - 0.5) * 10 // Individual Z-jitter
+        playerZ - CFG.AI_BOT_SPAWN_DISTANCE - (index * CFG.AI_BOT_WAVE_Z_SPACING) + (Math.random() - 0.5) * 10 // Individual Z-jitter
       );
     }
 
@@ -801,7 +853,7 @@ function buildThreeApp(container) {
       const dx = c.mesh.position.x - shipAnchor.position.x;
       const dy = c.mesh.position.y - shipAnchor.position.y;
       const angleToCore = Math.atan2(Math.hypot(dx, dy), Math.max(dz, 0.001));
-      const isTargeted = dz > 0 && distanceToShip < 300 && angleToCore <= THREE.MathUtils.degToRad(30);
+      const isTargeted = dz > 0 && distanceToShip < 500;
       ud.reticle.visible = isTargeted;
       ud.reticle.rotation.y += dt * 0.7;
       ud.reticle.material.opacity = 0.3 + Math.sin(wallTime * 8) * 0.12;
@@ -962,7 +1014,19 @@ function buildThreeApp(container) {
       portalSys.spawned = true;
       portalSys.group.visible = true;
       portalSys.group.position.set(0, 0, shipAnchor.position.z - 230);
+      portalSafeZ = shipAnchor.position.z - 230;
       sfx.play("portal");
+    }
+
+    // Clear any obstacles near the portal so the exit is clean
+    const PORTAL_CLEARANCE = 260;
+    for (const p of [rings, walls, firewalls, windmills]) {
+      if (!p) continue;
+      for (const o of p) {
+        if (o.active && Math.abs(o.group.position.z - portalSafeZ) < PORTAL_CLEARANCE) {
+          o.group.visible = false; o.active = false;
+        }
+      }
     }
   }
 
@@ -1131,7 +1195,9 @@ function buildThreeApp(container) {
     coresDestroyed = 0; portalUnlocked = false;
     escapeTimeNeeded = CFG.BASE_ESCAPE_TIME;
     shootCool = 0; disruptMeter = 0; camKick = 0; camFOV = 75;
-    coreSpawnTimer = 0; currentWaveId = 0;
+    coreSpawnTimer = 3; currentWaveId = 0;
+    lastObstacleClearedAt = -99;
+    portalSafeZ = null;
     harvestedWaves.clear();
     camera.fov = 75; camera.updateProjectionMatrix();
     bannerTimer = 0; bannerText = "";
@@ -1148,6 +1214,10 @@ function buildThreeApp(container) {
     // Reset ship
     shipAnchor.position.set(0, 0, 0); shipAnchor.rotation.set(0, 0, 0);
     shipTarget.set(0, 0, 0);
+
+    // Center crosshair on screen
+    G.crosshair.style.left = `${innerWidth / 2}px`;
+    G.crosshair.style.top = `${innerHeight / 2}px`;
 
     // Camera
     camera.position.set(0, 8, 15); camLerp.set(0, 8, 15);
@@ -1293,7 +1363,10 @@ function buildThreeApp(container) {
     const inputMag = Math.abs(xIn) + Math.abs(yIn);
 
     // Continuous shoot on hold
-    if ((keys.has("Space") || mouseDown) && shootCool <= 0) shoot();
+    if ((keys.has("Space") || mouseDown || touchShootHeld) && shootCool <= 0) shoot();
+    
+    // Mobile continuous shoot on hold
+    if (touchShootHeld && shootCool <= 0) shoot();
 
     // AFK detection
     if (inputMag < 0.05) {
@@ -1368,22 +1441,39 @@ function buildThreeApp(container) {
 
     // ── OBSTACLES ──────────────────────────────────────────────────
     const density = getDensity(diffT);
-    spawnObstacles(rings, walls, firewalls, windmills, shipAnchor.position.z, density, spawnState, diffT, obTargX, obTargY);
+    const spawnResult = spawnObstacles(rings, walls, firewalls, windmills, shipAnchor.position.z, density, spawnState, diffT, obTargX, obTargY, portalSafeZ, wallTime, lastObstacleClearedAt);
+    if (spawnResult && spawnResult.lastObstacleClearedAt !== undefined) lastObstacleClearedAt = spawnResult.lastObstacleClearedAt;
     animateObstacles(rings, walls, windmills, diffT, dt);
 
-    // Controlled Spawn: 3 every 5 seconds
+    // AI bot waves: 1-3 bots every 8 seconds, only when there is room to react.
     coreSpawnTimer -= rawDt;
     if (coreSpawnTimer <= 0) {
-      coreSpawnTimer = CFG.AI_BOT_SPAWN_INTERVAL;
-      currentWaveId++;
-      for (let i = 0; i < CFG.AI_BOT_SPAWN_COUNT; i++) {
-        if (cores.length < CFG.MAX_AI_BOTS) {
-          // Check if spawn position is clear of obstacles
-          const spawnZ = shipAnchor.position.z - 210 - (i * 8);
+      const timeSinceObstacle = wallTime - lastObstacleClearedAt;
+      if (timeSinceObstacle < CFG.AI_BOT_OBSTACLE_GRACE_PERIOD) {
+        coreSpawnTimer = CFG.AI_BOT_SPAWN_RETRY_DELAY;
+      } else {
+        coreSpawnTimer = CFG.AI_BOT_SPAWN_INTERVAL;
+        const spawnCount = THREE.MathUtils.randInt(CFG.AI_BOT_MIN_SPAWN_COUNT, CFG.AI_BOT_MAX_SPAWN_COUNT);
+        const waveSlots = [];
+        for (let i = 0; i < spawnCount; i++) {
+          if (cores.length + waveSlots.length >= CFG.MAX_AI_BOTS) break;
+          const spawnZ = shipAnchor.position.z - CFG.AI_BOT_SPAWN_DISTANCE - (i * CFG.AI_BOT_WAVE_Z_SPACING);
           if (isSpawnClear(spawnZ, rings, walls, firewalls, windmills)) {
-            spawnCore(shipAnchor.position.z, null, i, currentWaveId);
+            waveSlots.push(i);
           }
         }
+
+        if (waveSlots.length === 0) {
+          coreSpawnTimer = CFG.AI_BOT_SPAWN_RETRY_DELAY;
+        } else {
+          currentWaveId++;
+          for (let waveIndex = 0; waveIndex < waveSlots.length; waveIndex++) {
+            spawnCore(shipAnchor.position.z, null, waveIndex, currentWaveId, waveSlots.length);
+          }
+        }
+      }
+      if (currentWaveId === 1) {
+        showChapterBanner("AIM WITH MOUSE · CLICK TO SHOOT", "#ff4488", 3000);
       }
     }
     updateCores(dt, shipAnchor.position.z);
@@ -1504,6 +1594,14 @@ function buildThreeApp(container) {
     updateHUD(coresDestroyed, escapeTimeNeeded);
     syncBanner();
 
+    // Crosshair lock-on feedback
+    const { target: aimTarget } = getAimTarget(shipAnchor.position);
+    if (aimTarget) {
+      G.crosshair.classList.add("is-locked");
+    } else {
+      G.crosshair.classList.remove("is-locked");
+    }
+
     audio.update(wallTime, slowMo > 0);
 
     composer.render();
@@ -1527,6 +1625,7 @@ function buildThreeApp(container) {
       isRunActive = true;
       prevTs = 0;
       G.deathScreen.classList.remove("is-visible");
+      G.portalArrow.classList.remove("is-visible");
       audio.start();
       if (fromPortal && referrer) buildStartPortal(portalSys, referrer, shipAnchor.position.z);
     },
@@ -1537,13 +1636,13 @@ function buildThreeApp(container) {
 // GAME SPEED + DIFFICULTY
 // ═══════════════════════════════════════════════════════════════════
 function getSpeed(t) {
-  if (t >= 180) return 145;
-  if (t >= 135) return THREE.MathUtils.mapLinear(t, 135, 180, 128, 145);
-  if (t >= 100) return THREE.MathUtils.mapLinear(t, 100, 135, 115, 128);
-  if (t >= 70) return THREE.MathUtils.mapLinear(t, 70, 100, 100, 115);
-  if (t >= 50) return THREE.MathUtils.mapLinear(t, 50, 70, 82, 100);
-  if (t >= 25) return THREE.MathUtils.mapLinear(t, 25, 50, 60, 82);
-  return THREE.MathUtils.mapLinear(t, 0, 25, 50, 60);
+  if (t >= 180) return 125;
+  if (t >= 135) return THREE.MathUtils.mapLinear(t, 135, 180, 110, 125);
+  if (t >= 100) return THREE.MathUtils.mapLinear(t, 100, 135, 98, 110);
+  if (t >= 70) return THREE.MathUtils.mapLinear(t, 70, 100, 85, 98);
+  if (t >= 50) return THREE.MathUtils.mapLinear(t, 50, 70, 70, 85);
+  if (t >= 25) return THREE.MathUtils.mapLinear(t, 25, 50, 52, 70);
+  return THREE.MathUtils.mapLinear(t, 0, 25, 42, 52);
 }
 
 function getDensity(t) {
@@ -1712,7 +1811,7 @@ function deactivateAll(...pools) {
   }
 }
 
-function spawnObstacles(rings, walls, firewalls, windmills, playerZ, density, state, t, targX, targY) {
+function spawnObstacles(rings, walls, firewalls, windmills, playerZ, density, state, t, targX, targY, portalSafeZ, wallTime, lastObstacleClearedAt) {
   const SPAWN_DIST = 210, RECYCLE_BEHIND = 22, Z_SPACING = 120, MAX_ACTIVE = 2;
   const gapCfg = getGapCfg(t);
 
@@ -1722,6 +1821,7 @@ function spawnObstacles(rings, walls, firewalls, windmills, playerZ, density, st
     for (const o of p) {
       if (o.active && o.group.position.z > playerZ + RECYCLE_BEHIND) {
         o.group.visible = false; o.active = false;
+        lastObstacleClearedAt = wallTime;
       }
     }
   }
@@ -1801,6 +1901,12 @@ function spawnObstacles(rings, walls, firewalls, windmills, playerZ, density, st
       continue;
     }
 
+    // Portal safety: don't block the exit ring
+    if (portalSafeZ !== null && Math.abs(z - portalSafeZ) < 260) {
+      state.nextZ -= getSpawnGap(t);
+      continue;
+    }
+
     let placedObstacle = false;
     let isCrusher = false;
 
@@ -1870,6 +1976,7 @@ function spawnObstacles(rings, walls, firewalls, windmills, playerZ, density, st
       state.nextZ -= getSpawnGap(t);
     }
   }
+  return { lastObstacleClearedAt };
 }
 
 function getSpawnGap(t) {
@@ -2577,6 +2684,9 @@ class AITroll {
         ]);
     showChapterBanner("CHAPTER I: THE AI IS SMUG", this.colors.SMUG, 2200);
     this.show(greeting, { priority: 3, interrupt: true, ttlMs: 7000 });
+    setTimeout(() => {
+      this.show("MOVE YOUR MOUSE TO AIM. CLICK OR SPACE TO SHOOT.", { priority: 4, interrupt: false, ttlMs: 5000 });
+    }, 2500);
     setTimeout(() => {
       this.show(rules, { priority: 3, interrupt: true, ttlMs: 8000 });
     }, 5000);

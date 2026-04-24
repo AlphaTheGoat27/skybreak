@@ -170,20 +170,42 @@ body {
   top: 3.6rem;
   left: 50%;
   transform: translateX(-50%);
-  font-size: 11px;
-  letter-spacing: 0.2em;
+  font-size: 12px;
+  font-weight: bold;
+  letter-spacing: 0.1em;
   color: var(--cyan);
-  background: rgba(0, 4, 8, 0.88);
-  border: 1px solid rgba(0,255,255,0.5);
-  padding: 4px 14px;
-  border-radius: 2px;
+  background: linear-gradient(135deg, rgba(0, 4, 8, 0.95), rgba(0, 8, 16, 0.9));
+  border: 2px solid rgba(0,255,255,0.6);
+  padding: 6px 16px;
+  border-radius: 4px;
   opacity: 0;
-  transition: opacity 0.3s ease;
-  text-shadow: 0 0 10px rgba(0,255,255,0.7);
-  animation: blink 0.7s steps(1) infinite;
+  visibility: hidden;
+  transition: all 0.3s ease;
+  text-shadow: 0 0 12px rgba(0,255,255,0.8), 0 0 4px rgba(0,255,255,0.4);
+  box-shadow: 0 0 20px rgba(0,255,255,0.3), inset 0 0 10px rgba(0,255,255,0.1);
+  font-family: 'Share Tech Mono', monospace;
+  text-transform: uppercase;
+  animation: none;
 }
 
-.portal-arrow.is-visible { opacity: 1; }
+.portal-arrow.is-visible { 
+  opacity: 1; 
+  visibility: visible;
+  border-color: rgba(0,255,255,0.9);
+  box-shadow: 0 0 30px rgba(0,255,255,0.5), inset 0 0 15px rgba(0,255,255,0.2);
+  animation: portalPulse 2s ease-in-out infinite;
+}
+
+@keyframes portalPulse {
+  0%, 100% { 
+    transform: translateX(-50%) scale(1);
+    text-shadow: 0 0 12px rgba(0,255,255,0.8), 0 0 4px rgba(0,255,255,0.4);
+  }
+  50% { 
+    transform: translateX(-50%) scale(1.05);
+    text-shadow: 0 0 20px rgba(0,255,255,1), 0 0 8px rgba(0,255,255,0.6);
+  }
+}
 
 /* ── Bar group (bottom-left) ─────────────────────────────────────── */
 .hud-bar-group {
@@ -280,6 +302,19 @@ body {
 
 .crosshair.shooting::before,
 .crosshair.shooting::after { background: var(--cyan); }
+
+/* Crosshair lock-on feedback */
+.crosshair.is-locked::before,
+.crosshair.is-locked::after {
+  background: #ff4488;
+  box-shadow: 0 0 8px #ff4488;
+}
+
+.crosshair.is-locked .crosshair-ring {
+  border-color: #ff4488;
+  box-shadow: 0 0 8px rgba(255,68,136,0.5);
+  transform: scale(1.15);
+}
 
 /* ── Flight tip / Banner ─────────────────────────────────────────── */
 .flight-tip {
