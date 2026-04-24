@@ -11,8 +11,8 @@ import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 const CFG = {
   // Hybrid win condition
   BASE_ESCAPE_TIME: 180,
-  TIME_REDUCTION_PER_CORE: 10,
-  CORES_FOR_INSTANT_WIN: 10,
+  TIME_REDUCTION_PER_AI_BOT: 10,
+  AI_BOTS_FOR_INSTANT_WIN: 10,
   MIN_ESCAPE_TIME: 80,
 
   // Player
@@ -27,11 +27,11 @@ const CFG = {
   SHOOT_COOLDOWN: 1.2,
   DISRUPTION_GAIN_PER_HIT: 0.09,
 
-  // Cores (glitch entities)
-  MAX_CORES: 40,
+  // AI Bots (replicated glitch entities)
+  MAX_AI_BOTS: 40,
   CORE_SPAWN_CHANCE_BASE: 0.04,
-  CORE_SPAWN_INTERVAL: 5,
-  CORE_SPAWN_COUNT: 3,
+  AI_BOT_SPAWN_INTERVAL: 5,
+  AI_BOT_SPAWN_COUNT: 3,
 
   // Storage
   KEY_NAME: "skybreak_name",
@@ -118,17 +118,18 @@ app.innerHTML = `
   <div id="hud-best" class="hud-best">PB --</div>
 
   <div id="hud-objective" class="hud-objective">OBJECTIVE: SURVIVE THE BREACH</div>
-  <div id="hud-progress" class="hud-progress">CORES 0/20 · PORTAL LOCKED</div>
+  <div id="hud-progress" class="hud-progress">AI BOTS 0/10 | PORTAL UNLOCKS AT 180s</div>
+  <div id="portal-arrow" class="portal-arrow">PORTAL AHEAD 0m</div>
 
   <div class="hud-bar-group">
-    <div class="hud-bar-label" id="disruption-label">DISRUPTION</div>
+    <div class="hud-bar-label" id="disruption-label">SIGNAL BREAK</div>
     <div class="hud-bar disruption-bar"><div id="disruption-fill" class="hud-bar-fill disruption-fill"></div></div>
-    <div class="hud-bar-label integrity-label">INTEGRITY</div>
+    <div class="hud-bar-label integrity-label">HULL</div>
     <div class="hud-bar integrity-bar"><div id="integrity-fill" class="hud-bar-fill integrity-fill"></div></div>
   </div>
 
   <div id="crosshair" class="crosshair"></div>
-  <div id="flight-tip" class="flight-tip">WASD/ARROWS · SPACE/CLICK = SHOOT · DESTROY CORES · REACH THE PORTAL</div>
+  <div id="flight-tip" class="flight-tip">WASD/ARROWS · SPACE/CLICK = SHOOT · DESTROY AI BOTS · REACH THE PORTAL</div>
 
   <div id="ai-box" class="ai-box">
     <span class="ai-prefix">[SYSTEM_AI] &gt; </span><span id="ai-msg"></span>
@@ -139,13 +140,24 @@ app.innerHTML = `
 <div id="white-flash" class="white-flash"></div>
 <div id="damage-flash" class="damage-flash"></div>
 <div id="crash-overlay" class="crash-overlay"><div id="crash-text" class="crash-text">TRAJECTORY INVALID</div></div>
+<div id="chapter-banner" class="chapter-banner"></div>
+<div id="invert-overlay" class="invert-overlay">CONTROLS INVERTED</div>
+<div id="mobile-tutorial" class="mobile-tutorial">
+  <div class="mobile-tutorial__title">LEFT HALF = MOVE</div>
+  <div class="mobile-tutorial__title">RIGHT HALF = SHOOT</div>
+  <div class="mobile-tutorial__diagram">LEFT | RIGHT</div>
+</div>
 
 <!-- Death screen -->
 <div id="death-screen" class="death-screen">
   <div class="death-content">
-    <div class="death-title">YOU LOST</div>
+    <div id="death-title" class="death-title">YOU LOST</div>
     <div id="death-sub" class="death-sub"></div>
     <div id="death-cores" class="death-cores"></div>
+    <div class="death-progress">
+      <div class="death-progress__bar"><div id="death-progress-fill" class="death-progress__fill"></div></div>
+      <div id="death-progress-label" class="death-progress__label"></div>
+    </div>
     <div id="death-ai-line" class="death-ai-line"></div>
     <div class="death-buttons">
       <button id="death-retry" class="death-btn death-btn--retry">TRY AGAIN</button>
@@ -164,8 +176,16 @@ app.innerHTML = `
   <p class="game-subtitle">AI REALITY COLLAPSE</p>
   <div id="intro-label" class="intro-label"></div>
   <div id="intro-hint" class="intro-hint">
-    <span>DESTROY <strong>10 CORES</strong> OR SURVIVE <strong>180s</strong> TO UNLOCK THE PORTAL</span>
-    <span>EACH CORE DESTROYED CUTS <strong>10s</strong> FROM ESCAPE TIME</span>
+    <div class="intro-title">SYSTEM BREACH</div>
+    <div class="intro-narrative">THE AI BUILT THIS WORLD. IT IS COLLAPSING.</div>
+    <div class="intro-narrative">THE AI HAS SELF-REPLICATED — MORE BOTS, HIGHER THREAT.</div>
+    <div class="intro-narrative">SHOOT THE GLOWING AI BOTS TO BREAK THE LOCK EARLY.</div>
+    <div class="intro-narrative accent">REACH THE PORTAL BEFORE THE VOID TAKES YOU.</div>
+    <div class="intro-key">
+      <span>PINK AI BOT = SHOOT IT</span>
+      <span>PORTAL = FLY THROUGH IT</span>
+      <span>WASD + SPACE / CLICK</span>
+    </div>
   </div>
   <form id="intro-form" class="intro-form">
     <input id="intro-input" class="intro-input" type="text" placeholder="enter pilot name... or leave blank" maxlength="16" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false">
@@ -187,6 +207,7 @@ const G = {
   hudBest: document.getElementById("hud-best"),
   hudObjective: document.getElementById("hud-objective"),
   hudProgress: document.getElementById("hud-progress"),
+  portalArrow: document.getElementById("portal-arrow"),
   disruptionFill: document.getElementById("disruption-fill"),
   integrityFill: document.getElementById("integrity-fill"),
   crosshair: document.getElementById("crosshair"),
@@ -197,9 +218,15 @@ const G = {
   damageFlash: document.getElementById("damage-flash"),
   crashOverlay: document.getElementById("crash-overlay"),
   crashText: document.getElementById("crash-text"),
+  chapterBanner: document.getElementById("chapter-banner"),
+  invertOverlay: document.getElementById("invert-overlay"),
+  mobileTutorial: document.getElementById("mobile-tutorial"),
   deathScreen: document.getElementById("death-screen"),
+  deathTitle: document.getElementById("death-title"),
   deathSub: document.getElementById("death-sub"),
   deathCores: document.getElementById("death-cores"),
+  deathProgressFill: document.getElementById("death-progress-fill"),
+  deathProgressLabel: document.getElementById("death-progress-label"),
   deathAiLine: document.getElementById("death-ai-line"),
   deathRetry: document.getElementById("death-retry"),
   deathQuit: document.getElementById("death-quit"),
@@ -219,6 +246,9 @@ let PLAYER_NAME = "";
 let threeApp = null;
 let hasStarted = false;
 let aiTroll = null;
+let hasShownMobileTutorial = false;
+let chapterBannerTimer = 0;
+let invertOverlayTimer = 0;
 
 // Saved name
 const savedName = localStorage.getItem(CFG.KEY_NAME) || "";
@@ -242,6 +272,68 @@ const typeTimer = setInterval(() => {
     G.introLabel.classList.remove("is-typing");
   }
 }, 38);
+
+function flashWhite(opacity = 0.08, durationMs = 70) {
+  if (!G.whiteFlash) return;
+  G.whiteFlash.style.opacity = String(opacity);
+  setTimeout(() => {
+    G.whiteFlash.style.opacity = "0";
+  }, durationMs);
+}
+
+function showChapterBanner(text, color = "#00ffff", durationMs = 2400) {
+  if (!G.chapterBanner) return;
+  clearTimeout(chapterBannerTimer);
+  G.chapterBanner.textContent = text;
+  G.chapterBanner.style.color = color;
+  G.chapterBanner.classList.add("is-visible");
+  chapterBannerTimer = setTimeout(() => {
+    G.chapterBanner.classList.remove("is-visible");
+  }, durationMs);
+}
+
+function showInvertOverlay(durationMs = 800) {
+  if (!G.invertOverlay) return;
+  clearTimeout(invertOverlayTimer);
+  G.invertOverlay.classList.add("is-visible");
+  invertOverlayTimer = setTimeout(() => {
+    G.invertOverlay.classList.remove("is-visible");
+  }, durationMs);
+}
+
+function flashAIBoxForAttack(color = "#ffff00") {
+  if (!G.aiBox) return;
+  G.aiBox.style.setProperty("--attack-color", color);
+  G.aiBox.classList.remove("is-attack-flash");
+  void G.aiBox.offsetWidth;
+  G.aiBox.classList.add("is-attack-flash");
+  setTimeout(() => G.aiBox.classList.remove("is-attack-flash"), 420);
+}
+
+function showMobileTutorial() {
+  if (hasShownMobileTutorial || !G.mobileTutorial) return;
+  hasShownMobileTutorial = true;
+  G.mobileTutorial.classList.add("is-visible");
+  setTimeout(() => G.mobileTutorial.classList.remove("is-visible"), 3000);
+}
+
+function hideMobileTutorial() {
+  G.mobileTutorial?.classList.remove("is-visible");
+}
+
+function getDeathTitle(seconds) {
+  if (seconds < 20) return "DELETED IMMEDIATELY";
+  if (seconds < 60) return "THE AI LAUGHED";
+  if (seconds < 120) return "ALMOST SUSPICIOUS";
+  if (seconds < 160) return "THE AI RELAXED";
+  return "SO CLOSE";
+}
+
+function getEscapeProgress(seconds, cores, escapeNeeded) {
+  const timeProgress = escapeNeeded > 0 ? seconds / escapeNeeded : 0;
+  const coreProgress = cores / CFG.AI_BOTS_FOR_INSTANT_WIN;
+  return THREE.MathUtils.clamp(Math.max(timeProgress, coreProgress), 0, 1);
+}
 
 function startGame() {
   if (hasStarted) return;
@@ -273,7 +365,10 @@ function startGame() {
     threeApp.beginRun({ fromPortal, referrer });
     G.hud.classList.add("is-active");
 
-    if ("ontouchstart" in window) G.shootHint.classList.add("is-visible");
+    if ("ontouchstart" in window) {
+      G.shootHint.classList.add("is-visible");
+      showMobileTutorial();
+    }
 
     G.introInput.blur();
     G.introScreen.classList.add("is-fading");
@@ -463,6 +558,7 @@ function buildThreeApp(container) {
   const onTouchStart = e => {
     touchOn = true;
     lastTX = e.touches[0].clientX; lastTY = e.touches[0].clientY;
+    hideMobileTutorial();
     if (lastTX > innerWidth / 2) shoot();
   };
   const onTouchMove = e => {
@@ -574,8 +670,38 @@ function buildThreeApp(container) {
     return true;
   }
 
+  function makeFloatingLabel(text, {
+    width = 320,
+    height = 72,
+    font = "bold 26px monospace",
+    fill = "#ffd54a",
+    stroke = "rgba(255, 213, 74, 0.35)",
+    background = "rgba(0, 0, 0, 0.55)",
+    scaleX = 7.6,
+    scaleY = 1.7,
+  } = {}) {
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = background;
+    ctx.fillRect(0, 0, width, height);
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(2, 2, width - 4, height - 4);
+    ctx.fillStyle = fill;
+    ctx.font = font;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(text, width / 2, height / 2);
+    const tex = new THREE.CanvasTexture(canvas);
+    const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
+    spr.scale.set(scaleX, scaleY, 1);
+    return spr;
+  }
+
   function spawnCore(playerZ, parent = null, index = 0, waveId = -1) {
-    if (cores.length >= CFG.MAX_CORES) return;
+    if (cores.length >= CFG.MAX_AI_BOTS) return;
     const group = new THREE.Group();
 
     const gen = parent ? (parent.mesh.userData.generation || 0) + 1 : 0;
@@ -594,6 +720,26 @@ function buildThreeApp(container) {
     ring.rotation.x = Math.PI / 2;
     group.add(ring);
 
+    const reticle = new THREE.Mesh(
+      new THREE.OctahedronGeometry(5.2, 0),
+      new THREE.MeshBasicMaterial({ color: 0xffc94a, wireframe: true, transparent: true, opacity: 0.42 })
+    );
+    reticle.visible = false;
+    group.add(reticle);
+
+    let tutorialLabel = null;
+    if (!parent && waveId === 1 && index === 0) {
+      tutorialLabel = makeFloatingLabel("SHOOT THIS", {
+        width: 280,
+        height: 60,
+        font: "bold 22px monospace",
+        scaleX: 6.8,
+        scaleY: 1.5,
+      });
+      tutorialLabel.position.set(0, 7.2, 0);
+      group.add(tutorialLabel);
+    }
+
     if (parent) {
       group.position.copy(parent.mesh.position);
       group.position.x += (Math.random() - 0.5) * 5;
@@ -601,7 +747,7 @@ function buildThreeApp(container) {
       group.position.z += (Math.random() - 0.5) * 6;
     } else {
       // Formation spawning: Spread them out in a tighter, staggered formation with randomness
-      const count = CFG.CORE_SPAWN_COUNT;
+      const count = CFG.AI_BOT_SPAWN_COUNT;
       const waveAngle = ((waveId * 1.5) % (Math.PI * 2)); // Dynamic rotation per wave
       const angle = (index / count) * Math.PI * 2 + waveAngle + (Math.random() - 0.5) * 0.4;
       const radius = 11 + Math.random() * 5; // Variation in radius
@@ -620,7 +766,8 @@ function buildThreeApp(container) {
       generation: gen,
       replicateT: 0,
       waveId: waveId,
-      core, ring
+      tutorialUntil: tutorialLabel ? wallTime + 2 : 0,
+      core, ring, reticle, tutorialLabel
     };
     _scene.add(group);
     cores.push({ mesh: group, active: true });
@@ -633,17 +780,35 @@ function buildThreeApp(container) {
       const c = cores[i];
       if (!c.active) continue;
       const ud = c.mesh.userData;
+      const distanceToShip = c.mesh.position.distanceTo(shipAnchor.position);
 
       // Move
       c.mesh.position.z += ud.speed * dt;
 
       // Animate
-      ud.core.rotation.x += ud.rotSpd * dt;
-      ud.core.rotation.y += ud.rotSpd * 0.7 * dt;
-      ud.ring.rotation.z += ud.rotSpd * 1.2 * dt;
+      const nearFactor = THREE.MathUtils.clamp(1 - distanceToShip / 80, 0, 1);
+      const rotMultiplier = 1 + nearFactor;
+      ud.core.rotation.x += ud.rotSpd * dt * rotMultiplier;
+      ud.core.rotation.y += ud.rotSpd * 0.7 * dt * rotMultiplier;
+      ud.ring.rotation.z += ud.rotSpd * 1.2 * dt * rotMultiplier;
+      ud.core.material.opacity = 0.95 + nearFactor * 0.05;
+      ud.ring.material.opacity = 0.6 + nearFactor * 0.25;
       c.mesh.position.y += Math.sin(performance.now() * 0.004 + ud.phase) * 0.022;
       // Drift
       c.mesh.position.x += Math.cos(performance.now() * 0.001 + ud.phase) * 0.015;
+
+      const dz = shipAnchor.position.z - c.mesh.position.z;
+      const dx = c.mesh.position.x - shipAnchor.position.x;
+      const dy = c.mesh.position.y - shipAnchor.position.y;
+      const angleToCore = Math.atan2(Math.hypot(dx, dy), Math.max(dz, 0.001));
+      const isTargeted = dz > 0 && distanceToShip < 300 && angleToCore <= THREE.MathUtils.degToRad(30);
+      ud.reticle.visible = isTargeted;
+      ud.reticle.rotation.y += dt * 0.7;
+      ud.reticle.material.opacity = 0.3 + Math.sin(wallTime * 8) * 0.12;
+
+      if (ud.tutorialLabel) {
+        ud.tutorialLabel.visible = wallTime <= ud.tutorialUntil;
+      }
 
       // Replication removed
 
@@ -655,8 +820,7 @@ function buildThreeApp(container) {
       }
 
       // Contact damage
-      const contactDist = c.mesh.position.distanceTo(shipAnchor.position);
-      if (contactDist < 4.5 && performance.now() - lastContactAt > 750) {
+      if (distanceToShip < 4.5 && performance.now() - lastContactAt > 750) {
         lastContactAt = performance.now();
         _scene.remove(c.mesh);
         cores.splice(i, 1);
@@ -696,7 +860,8 @@ function buildThreeApp(container) {
         bullets.splice(b, 1);
 
         // All cores are individually destroyable - cap at win condition
-        if (cdRef.val < CFG.CORES_FOR_INSTANT_WIN) {
+        if (cdRef.val < CFG.AI_BOTS_FOR_INSTANT_WIN) {
+          flashWhite(0.06, 55);
           spawnParticles(closestCore.mesh.position.clone(), 0x00ffff);
           _scene.remove(closestCore.mesh);
           cores.splice(closestIdx, 1);
@@ -708,10 +873,10 @@ function buildThreeApp(container) {
           // Update escape time (hybrid win condition)
           escapeTimeNeeded = Math.max(CFG.MIN_ESCAPE_TIME, CFG.BASE_ESCAPE_TIME - cdRef.val * CFG.TIME_REDUCTION_PER_CORE);
 
-          aiTroll?.onCoreDestroyed(cdRef.val, CFG.CORES_FOR_INSTANT_WIN);
+          aiTroll?.onCoreDestroyed(cdRef.val, CFG.AI_BOTS_FOR_INSTANT_WIN);
           updateHUD(cdRef.val, escapeTimeNeeded);
 
-          if (cdRef.val >= CFG.CORES_FOR_INSTANT_WIN) unlockPortal(cdRef.val);
+          if (cdRef.val >= CFG.AI_BOTS_FOR_INSTANT_WIN) unlockPortal(cdRef.val);
         }
       }
     }
@@ -758,8 +923,7 @@ function buildThreeApp(container) {
     // Visual
     G.damageFlash.classList.add("is-active");
     setTimeout(() => G.damageFlash.classList.remove("is-active"), 180);
-    G.whiteFlash.style.opacity = "0.14";
-    setTimeout(() => { G.whiteFlash.style.opacity = "0"; }, 80);
+    flashWhite(0.14, 80);
 
     // Camera shake
     camera.position.x += (Math.random() - 0.5) * 2;
@@ -784,7 +948,7 @@ function buildThreeApp(container) {
     if (portalUnlocked) return;
     portalUnlocked = true;
 
-    if (cores >= CFG.CORES_FOR_INSTANT_WIN) {
+    if (cores >= CFG.AI_BOTS_FOR_INSTANT_WIN) {
       aiTroll?.pushLine("NO. You destroyed them all. The lock is GONE.");
     } else {
       aiTroll?.pushLine("the portal... you actually made it through...");
@@ -822,21 +986,31 @@ function buildThreeApp(container) {
     G.hudSpeed.textContent = `${Math.round(getSpeed(diffT))} m/s`;
 
     // Objective
-    const remaining = Math.max(0, CFG.CORES_FOR_INSTANT_WIN - cores);
+    const remaining = Math.max(0, CFG.AI_BOTS_FOR_INSTANT_WIN - cores);
     const timeLeft = Math.max(0, escapeNeeded - wallTime);
     if (portalUnlocked) {
       G.hudObjective.textContent = "OBJECTIVE: REACH THE PORTAL";
-    } else if (cores >= CFG.CORES_FOR_INSTANT_WIN - 1) {
-      G.hudObjective.textContent = `OBJECTIVE: ONE MORE CORE UNLOCKS THE EXIT`;
+    } else if (cores >= CFG.AI_BOTS_FOR_INSTANT_WIN - 1) {
+      G.hudObjective.textContent = "OBJECTIVE: ONE MORE CORE OPENS THE EXIT";
+    } else if (cores === 0) {
+      G.hudObjective.textContent = "OBJECTIVE: SHOOT AI BOTS TO BREAK THE LOCK EARLY";
     } else {
-      G.hudObjective.textContent = `OBJECTIVE: DESTROY CORES OR SURVIVE ${Math.ceil(escapeNeeded)}s`;
+      G.hudObjective.textContent = `OBJECTIVE: HUNT ${remaining} MORE AI BOTS OR HOLD OUT ${Math.ceil(timeLeft)}s`;
     }
 
     // Progress
-    const portalStatus = portalUnlocked ? "PORTAL OPEN"
-      : wallTime >= escapeNeeded - 5 ? "ALMOST..."
-      : `${Math.ceil(timeLeft)}s TO UNLOCK`;
-    G.hudProgress.textContent = `CORES ${cores}/${CFG.CORES_FOR_INSTANT_WIN} · ${portalStatus} · HP ${Math.ceil(health)}`;
+    let progressText;
+    if (portalUnlocked) {
+      progressText = `PORTAL OPEN | FLY THROUGH THE RING | HULL ${Math.ceil(health)}`;
+    } else if (cores === 0) {
+      progressText = `AI BOTS 0/${CFG.AI_BOTS_FOR_INSTANT_WIN} | PORTAL UNLOCKS AT ${Math.ceil(escapeNeeded)}s OR AFTER ${CFG.AI_BOTS_FOR_INSTANT_WIN} AI BOTS | HULL ${Math.ceil(health)}`;
+    } else if (remaining <= 1) {
+      progressText = `AI BOTS ${cores}/${CFG.AI_BOTS_FOR_INSTANT_WIN} | ONE MORE AI BOT OPENS THE PORTAL | ${Math.ceil(timeLeft)}s FALLBACK | HULL ${Math.ceil(health)}`;
+    } else {
+      const nextUnlockTime = Math.max(CFG.MIN_ESCAPE_TIME, escapeNeeded - CFG.TIME_REDUCTION_PER_CORE);
+      progressText = `AI BOTS ${cores}/${CFG.AI_BOTS_FOR_INSTANT_WIN} | ${remaining} MORE CUTS THE TIMER TO ${Math.ceil(nextUnlockTime)}s | ${Math.ceil(timeLeft)}s FALLBACK | HULL ${Math.ceil(health)}`;
+    }
+    G.hudProgress.textContent = progressText;
 
     // Integrity bar
     const hp = THREE.MathUtils.clamp(health / CFG.PLAYER_HEALTH, 0, 1);
@@ -871,8 +1045,8 @@ function buildThreeApp(container) {
       G.flightTip.classList.add("is-visible");
       return;
     }
-    const remaining = Math.max(0, CFG.CORES_FOR_INSTANT_WIN - coresDestroyed);
-    G.flightTip.textContent = `HUNT ${remaining} MORE CORES · SHOOT EARLY, DODGE LATE`;
+    const remaining = Math.max(0, CFG.AI_BOTS_FOR_INSTANT_WIN - coresDestroyed);
+    G.flightTip.textContent = `HUNT ${remaining} MORE AI BOTS · SHOOT EARLY, DODGE LATE`;
     delete G.flightTip.dataset.mode;
     G.flightTip.classList.add("is-visible");
   }
@@ -999,14 +1173,20 @@ function buildThreeApp(container) {
     vigPass.uniforms.redTint.value = 0;
 
     // HUD
+    clearTimeout(chapterBannerTimer);
+    clearTimeout(invertOverlayTimer);
     G.hudTimer.classList.remove("is-escaping");
     G.whiteFlash.classList.remove("is-visible");
     G.whiteFlash.style.opacity = "0";
     G.shatterCanvas.classList.remove("is-visible");
     G.crashOverlay.classList.remove("is-visible");
-    G.flightTip.textContent = "WASD · SPACE/CLICK = SHOOT · DESTROY CORES · REACH THE PORTAL";
+    G.chapterBanner.classList.remove("is-visible");
+    G.invertOverlay.classList.remove("is-visible");
+    G.portalArrow.classList.remove("is-visible");
+    G.flightTip.textContent = "WASD · SPACE/CLICK = SHOOT · DESTROY AI BOTS · REACH THE PORTAL";
     delete G.flightTip.dataset.mode;
     G.flightTip.classList.add("is-visible");
+    hideMobileTutorial();
 
     // AI events
     aiDirector.reset();
@@ -1016,12 +1196,19 @@ function buildThreeApp(container) {
   }
 
   // ── AI DIRECTOR ───────────────────────────────────────────────────
+  function triggerAttackFeedback(text, dur, color, key) {
+    showBanner(text, dur);
+    flashAIBoxForAttack(color);
+    sfx.alert?.(key);
+    if (key === "INVERT_CONTROLS") showInvertOverlay(800);
+  }
+
   const aiDirector = buildAIDirector(aiTroll, {
-    INVERT_CONTROLS: (dur) => showBanner("⚠ AI ATTACK: CONTROLS INVERTED", dur),
-    COMPRESS_SPACE: (dur) => showBanner("⚠ AI ATTACK: SPACE COMPRESSED", dur),
-    FRAGMENT_LIGHT: (dur) => showBanner("⚠ AI ATTACK: VISUAL FEED CORRUPTED", dur),
+    INVERT_CONTROLS: (dur) => triggerAttackFeedback("AI ATTACK: CONTROLS INVERTED", dur, "#fff36b", "INVERT_CONTROLS"),
+    COMPRESS_SPACE: (dur) => triggerAttackFeedback("AI ATTACK: SPACE COMPRESSED", dur, "#ff66cc", "COMPRESS_SPACE"),
+    FRAGMENT_LIGHT: (dur) => triggerAttackFeedback("AI ATTACK: VISUAL FEED CORRUPTED", dur, "#b57cff", "FRAGMENT_LIGHT"),
     OPTIMIZE_PATH: (dur) => {
-      showBanner("⚠ AI ATTACK: PATH REWRITTEN", dur);
+      triggerAttackFeedback("AI ATTACK: PATH REWRITTEN", dur, "#ff665f", "OPTIMIZE_PATH");
       forceCorridor(walls, shipAnchor.position.z);
     },
   });
@@ -1055,10 +1242,18 @@ function buildThreeApp(container) {
         // Show death screen
         const timeStr = wallTime.toFixed(1);
         const coreStr = coresDestroyed;
+        const insult = randomInsult(PLAYER_NAME, Math.floor(wallTime), coresDestroyed);
+        const progress = getEscapeProgress(wallTime, coresDestroyed, escapeTimeNeeded);
         G.deathSub.textContent = `survived ${timeStr}s`;
-        G.deathCores.textContent = `cores destroyed: ${coreStr}/${CFG.CORES_FOR_INSTANT_WIN}`;
-        G.deathAiLine.textContent = randomInsult(PLAYER_NAME, Math.floor(wallTime), coresDestroyed);
+        G.deathCores.textContent = `ai bots destroyed: ${coreStr}/${CFG.AI_BOTS_FOR_INSTANT_WIN}`;
+        G.deathTitle.textContent = getDeathTitle(wallTime);
+        G.deathProgressFill.style.width = `${Math.round(progress * 100)}%`;
+        G.deathProgressLabel.textContent = `${Math.round(progress * 100)}% to portal escape`;
+        G.deathAiLine.textContent = insult;
         G.deathScreen.classList.add("is-visible");
+        setTimeout(() => {
+          aiTroll?._queueSpeech(insult, { rate: 0.75, pitch: 0.7, priority: 2, ttlMs: 8000 });
+        }, 300);
         isRunActive = false;
       }
       composer.render();
@@ -1179,10 +1374,10 @@ function buildThreeApp(container) {
     // Controlled Spawn: 3 every 5 seconds
     coreSpawnTimer -= rawDt;
     if (coreSpawnTimer <= 0) {
-      coreSpawnTimer = CFG.CORE_SPAWN_INTERVAL;
+      coreSpawnTimer = CFG.AI_BOT_SPAWN_INTERVAL;
       currentWaveId++;
-      for (let i = 0; i < CFG.CORE_SPAWN_COUNT; i++) {
-        if (cores.length < CFG.MAX_CORES) {
+      for (let i = 0; i < CFG.AI_BOT_SPAWN_COUNT; i++) {
+        if (cores.length < CFG.MAX_AI_BOTS) {
           // Check if spawn position is clear of obstacles
           const spawnZ = shipAnchor.position.z - 210 - (i * 8);
           if (isSpawnClear(spawnZ, rings, walls, firewalls, windmills)) {
@@ -1204,11 +1399,25 @@ function buildThreeApp(container) {
     // ── PORTAL CHECK ───────────────────────────────────────────────
     if (!portalUnlocked) {
       // Hybrid win: time-based or core-based
-      if (wallTime >= escapeTimeNeeded || coresDestroyed >= CFG.CORES_FOR_INSTANT_WIN) {
+      if (wallTime >= escapeTimeNeeded || coresDestroyed >= CFG.AI_BOTS_FOR_INSTANT_WIN) {
         unlockPortal(coresDestroyed);
       }
     }
     updatePortal(portalSys, wallTime, shipAnchor.position, sfx, portalUnlocked);
+
+    if (portalUnlocked && portalSys.group.visible) {
+      const portalDistance = Math.max(0, Math.round(shipAnchor.position.distanceTo(portalSys.group.position)));
+      G.portalArrow.textContent = `PORTAL AHEAD ${portalDistance}m`;
+      G.portalArrow.classList.add("is-visible");
+      if (portalDistance < 150) {
+        G.whiteFlash.style.opacity = `${THREE.MathUtils.mapLinear(THREE.MathUtils.clamp(portalDistance, 20, 150), 150, 20, 0.015, 0.07)}`;
+      } else if (G.whiteFlash.style.opacity === "" || Number(G.whiteFlash.style.opacity) < 0.08) {
+        G.whiteFlash.style.opacity = "0";
+      }
+    } else {
+      G.portalArrow.classList.remove("is-visible");
+      if (G.whiteFlash.style.opacity === "" || Number(G.whiteFlash.style.opacity) < 0.08) G.whiteFlash.style.opacity = "0";
+    }
 
     // Portal collision
     if (!endSeq && portalUnlocked && portalSys.group.visible) {
@@ -1851,6 +2060,13 @@ function makeNameTag(name) {
 function buildPortalSystem(scene) {
   const group = new THREE.Group(); group.position.set(0, 0, 99999);
 
+  const beam = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.35, 0.35, 600, 6),
+    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.18 })
+  );
+  beam.rotation.x = Math.PI / 2;
+  group.add(beam);
+
   const ring = new THREE.Mesh(new THREE.TorusGeometry(20, 2, 6, 22), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.95 }));
   group.add(ring);
 
@@ -1869,7 +2085,7 @@ function buildPortalSystem(scene) {
   label.position.set(0, 26, 0); group.add(label);
   scene.add(group);
 
-  return { group, ring, inner, particles, label, spawned: false, startPortal: null };
+  return { group, beam, ring, inner, particles, label, spawned: false, startPortal: null };
 }
 
 function makePortalLabel(text) {
@@ -1886,6 +2102,7 @@ function makePortalLabel(text) {
 function updatePortal(sys, t, playerPos, sfx, unlocked) {
   if (!unlocked || !sys.group.visible) return;
   const hue = (t * 60) % 360;
+  sys.beam.material.opacity = 0.1 + ((Math.sin(t * Math.PI * 2) + 1) * 0.5) * 0.25;
   sys.ring.material.color.setHSL(hue / 360, 1, 0.5);
   sys.ring.rotation.z = t * 0.7;
   sys.inner.rotation.z = -t * 1.1;
@@ -2333,7 +2550,7 @@ class AITroll {
   }
 
   pushFirstLine() {
-    const rules = "rules: destroy 10 cores or survive 180 seconds to unlock the portal. each core cuts 10 seconds.";
+    const rules = "destroy 10 ai bots. each one cuts 10 seconds off the lock. or survive 180 seconds and wait for the breach to tear it open.";
     if (GLOBAL_STATS.deathsThisSession > 0) {
       const retryMsg = this._pick([
         "you have come to try again. admirable. foolish. but admirable.",
@@ -2349,16 +2566,17 @@ class AITroll {
     }
     const greeting = this.name
       ? this._pick([
-          `oh. ${this.name}. let's see how long you last.`,
-          `${this.name}. bold choice to sign your failure.`,
-          `welcome, ${this.name}. i prepared something special for you.`,
+          `oh. ${this.name}. i've been waiting. this world is already collapsing. the exit is mine. shoot my ai bots if you want it early.`,
+          `${this.name}. you arrived just in time for the collapse. the portal is locked. break my ai bots if you want out before the void decides for you.`,
+          `welcome, ${this.name}. the world is failing and the exit belongs to me. shoot the ai bots if you think you can steal it.`,
         ])
       : this._pick([
-          "another nameless pilot. prediction: lose.",
-          "anonymous again. wise choice. nobody has to remember this crash.",
-          "unnamed pilot detected. the portal does not care. neither do i.",
+          "another pilot. the world is collapsing. the portal is locked. shoot my ai bots to break it early, or survive 180 seconds if you prefer bad odds.",
+          "anonymous again. fine. the world is failing, the portal is sealed, and only my ai bots can hurry the unlock. prediction: neither plan works for you.",
+          "unnamed pilot detected. collapse in progress. portal locked. destroy my ai bots to cut the timer, or wait 180 seconds and hope the void is patient.",
         ]);
-    this.show(greeting, { priority: 3, interrupt: true, ttlMs: 4500 });
+    showChapterBanner("CHAPTER I: THE AI IS SMUG", this.colors.SMUG, 2200);
+    this.show(greeting, { priority: 3, interrupt: true, ttlMs: 7000 });
     setTimeout(() => {
       this.show(rules, { priority: 3, interrupt: true, ttlMs: 8000 });
     }, 5000);
@@ -2376,6 +2594,13 @@ class AITroll {
       if (state === "AGGRESSIVE") this.box.classList.add("is-shaking");
       else this.box.classList.remove("is-shaking");
     }
+    const chapterNames = {
+      SUSPICIOUS: "CHAPTER II: THE AI IS WATCHING YOU",
+      AGGRESSIVE: "CHAPTER III: THE AI IS HOSTILE",
+      PANICKING: "CHAPTER IV: THE AI IS AFRAID",
+      BROKEN: "CHAPTER V: COLLAPSE",
+    };
+    if (chapterNames[state]) showChapterBanner(chapterNames[state], this.colors[state] || "#00ffff");
     this.nextAutoLineAt = atTime + (state === "BROKEN" ? 0.55 : 1.35);
   }
 
@@ -2528,7 +2753,7 @@ class AITroll {
       return;
     }
     if (count === required - 1) {
-      this.pushLine(`one more core and the exit tears open. portal in ${CFG.MIN_ESCAPE_TIME}s. i hate this for me.`, {
+      this.pushLine(`one more ai bot and the exit tears open. portal in ${CFG.MIN_ESCAPE_TIME}s. i hate this for me.`, {
         priority: 2,
         ttlMs: 6500,
         cooldown: 4.2,
@@ -2537,9 +2762,9 @@ class AITroll {
     }
     if (count % 2 === 0 || count >= required - 3) {
       this.pushLine(this._pick([
-        `core ${count}/${required}. escape time cut to ${Math.ceil(timeLeft)}s. this is becoming a problem.`,
-        `another core gone. timer reduced to ${Math.ceil(timeLeft)} seconds. rude.`,
-        `core ${count}. my exit window just dropped to ${Math.ceil(timeLeft)}s.`,
+        `ai bot ${count}/${required}. escape time cut to ${Math.ceil(timeLeft)}s. this is becoming a problem.`,
+        `another ai bot gone. timer reduced to ${Math.ceil(timeLeft)} seconds. rude.`,
+        `ai bot ${count}. my exit window just dropped to ${Math.ceil(timeLeft)}s.`,
       ]), { ttlMs: 4200, cooldown: 2.8 });
     }
   }
@@ -2699,13 +2924,57 @@ function buildSfx() {
   const map = { nearMiss: "/sfx/nearMiss.mp3", crash: "/sfx/crash.mp3", portal: "/sfx/portal.mp3", bullet: "/sfx/bullet.mp3" };
   const vols = { nearMiss: 0.8, crash: 1.0, portal: 1.0, bullet: 0.55 };
   const cache = {};
+  let audioCtx = null;
   for (const [k, src] of Object.entries(map)) {
     const a = new Audio(src); a.preload = "auto"; a.volume = vols[k] ?? 0.7; cache[k] = a;
   }
-  return { play(name) {
-    const src = cache[name]; if (!src) return;
-    const c = src.cloneNode(true); c.volume = src.volume; c.play().catch(() => {});
-  }};
+
+  function ensureAudioContext() {
+    if (audioCtx) return audioCtx;
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return null;
+      audioCtx = new Ctx();
+      return audioCtx;
+    } catch (_err) {
+      return null;
+    }
+  }
+
+  function playAlert(kind) {
+    const ctx = ensureAudioContext();
+    if (!ctx) return;
+    if (ctx.state === "suspended") ctx.resume().catch(() => {});
+
+    const patterns = {
+      INVERT_CONTROLS: [920, 690, 980],
+      COMPRESS_SPACE: [540, 480, 430],
+      FRAGMENT_LIGHT: [760, 1020, 840],
+      OPTIMIZE_PATH: [660, 590, 740],
+    };
+    const notes = patterns[kind] || [800, 620, 900];
+    notes.forEach((freq, idx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = idx === 1 ? "triangle" : "square";
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.0001, ctx.currentTime + idx * 0.06);
+      gain.gain.exponentialRampToValueAtTime(0.035, ctx.currentTime + idx * 0.06 + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + idx * 0.06 + 0.15);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(ctx.currentTime + idx * 0.06);
+      osc.stop(ctx.currentTime + idx * 0.06 + 0.16);
+    });
+  }
+
+  return {
+    play(name) {
+      const src = cache[name]; if (!src) return;
+      const c = src.cloneNode(true); c.volume = src.volume; c.play().catch(() => {});
+    },
+    alert: playAlert,
+  };
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -2752,7 +3021,7 @@ function triggerShatter(onDone) {
 // ═══════════════════════════════════════════════════════════════════
 function randomInsult(name, seconds, cores) {
   const avg = seconds + 5;
-  const coreComment = cores >= 5 ? " you were so close on the cores." : cores >= 3 ? ` ${cores} cores isn't nothing.` : "";
+  const coreComment = cores >= 5 ? " you were so close on the ai bots." : cores >= 3 ? ` ${cores} ai bots isn't nothing.` : "";
   const lines = name ? [
     `${name}. FINALLY. TRASH DELETED.${coreComment}`,
     `trash successfully deleted. try again, ${name}.${coreComment}`,
