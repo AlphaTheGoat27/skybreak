@@ -10,34 +10,34 @@ import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 // ═══════════════════════════════════════════════════════════════════
 const CFG = {
   // Hybrid win condition
-  BASE_ESCAPE_TIME: 180,
-  TIME_REDUCTION_PER_AI_BOT: 10,
-  AI_BOTS_FOR_INSTANT_WIN: 10,
-  MIN_ESCAPE_TIME: 80,
+  BASE_ESCAPE_TIME: 120,
+  TIME_REDUCTION_PER_AI_BOT: 8,
+  AI_BOTS_FOR_INSTANT_WIN: 15,
+  MIN_ESCAPE_TIME: 60,
 
   // Player
   PLAYER_HEALTH: 100,
-  COLLISION_DAMAGE: 34,
-  CONTACT_DAMAGE: 18,
-  INVULN_TIME: 1.1,
+  COLLISION_DAMAGE: 40,
+  CONTACT_DAMAGE: 22,
+  INVULN_TIME: 0.9,
 
   // Shooting
-  BULLET_SPEED: 200,
+  BULLET_SPEED: 230,
   BULLET_LIFETIME: 3.0,
-  SHOOT_COOLDOWN: 0.35,
+  SHOOT_COOLDOWN: 0.3,
   DISRUPTION_GAIN_PER_HIT: 0.09,
 
   // AI Bots (replicated glitch entities)
-  MAX_AI_BOTS: 40,
+  MAX_AI_BOTS: 35,
   CORE_SPAWN_CHANCE_BASE: 0.04,
-  AI_BOT_SPAWN_INTERVAL: 8,
+  AI_BOT_SPAWN_INTERVAL: 6,
   AI_BOT_MIN_SPAWN_COUNT: 1,
   AI_BOT_MAX_SPAWN_COUNT: 3,
-  AI_BOT_SPAWN_DISTANCE: 380,
-  AI_BOT_WAVE_Z_SPACING: 28,
-  AI_BOT_OBSTACLE_CLEARANCE: 240,
-  AI_BOT_OBSTACLE_GRACE_PERIOD: 2.5,
-  AI_BOT_SPAWN_RETRY_DELAY: 0.75,
+  AI_BOT_SPAWN_DISTANCE: 320,
+  AI_BOT_WAVE_Z_SPACING: 25,
+  AI_BOT_OBSTACLE_CLEARANCE: 200,
+  AI_BOT_OBSTACLE_GRACE_PERIOD: 2.0,
+  AI_BOT_SPAWN_RETRY_DELAY: 0.5,
 
   // Storage
   KEY_NAME: "skybreak_name",
@@ -47,11 +47,11 @@ const CFG = {
   WEBRING_URL: "https://vibej.am/portal/2026",
 
   // AI commentator timing
-  AI_MOCKERY_END: 45,
-  AI_SUSPICION_END: 100,
-  AI_AGGRESSION_END: 160,
-  AI_PANIC_END: 185,
-  AI_GLOBAL_LINE_INTERVAL: 30,
+  AI_MOCKERY_END: 30,
+  AI_SUSPICION_END: 65,
+  AI_AGGRESSION_END: 100,
+  AI_PANIC_END: 115,
+  AI_GLOBAL_LINE_INTERVAL: 22,
   AI_MAX_SPEECH_QUEUE: 3,
 
   // Misc
@@ -124,7 +124,7 @@ app.innerHTML = `
   <div id="hud-best" class="hud-best">PB --</div>
 
   <div id="hud-objective" class="hud-objective">OBJECTIVE: SURVIVE THE BREACH</div>
-  <div id="hud-progress" class="hud-progress">AI BOTS 0/10 | PORTAL UNLOCKS AT 180s</div>
+  <div id="hud-progress" class="hud-progress">AI BOTS 0/15 | PORTAL UNLOCKS AT 120s</div>
   <div id="portal-arrow" class="portal-arrow">PORTAL AHEAD 0m</div>
 
   <div class="hud-bar-group">
@@ -457,13 +457,13 @@ class Bullet {
   }
 
   checkHit(ent) {
-    if (this.mesh.position.distanceTo(ent.mesh.position) < 7) return true;
+    if (this.mesh.position.distanceTo(ent.mesh.position) < 8.5) return true;
     const seg = this.mesh.position.clone().sub(this.prev);
     const lenSq = Math.max(seg.lengthSq(), 0.0001);
     const toEnt = ent.mesh.position.clone().sub(this.prev);
     const t = THREE.MathUtils.clamp(toEnt.dot(seg) / lenSq, 0, 1);
     const closest = this.prev.clone().addScaledVector(seg, t);
-    return closest.distanceTo(ent.mesh.position) < 7;
+    return closest.distanceTo(ent.mesh.position) < 8.5;
   }
 
   destroy() {
@@ -544,7 +544,7 @@ function buildThreeApp(container) {
   // ── INPUT ────────────────────────────────────────────────────────
   const keys = new Set();
   let touchDX = 0, touchDY = 0, lastTX = 0, lastTY = 0, touchOn = false;
-  let ptrX = 0, ptrY = 0;
+  let ptrX = 0, ptrY = 0, ptrScreenX = innerWidth / 2, ptrScreenY = innerHeight / 2;
   let mouseDown = false;
 
   const onKeyDown = e => {
@@ -556,6 +556,8 @@ function buildThreeApp(container) {
   const onPtrMove = e => {
     ptrX = THREE.MathUtils.clamp((e.clientX / innerWidth) * 2 - 1, -1, 1);
     ptrY = THREE.MathUtils.clamp(-((e.clientY / innerHeight) * 2 - 1), -1, 1);
+    ptrScreenX = e.clientX;
+    ptrScreenY = e.clientY;
     // Update crosshair position
     G.crosshair.style.left = `${e.clientX}px`;
     G.crosshair.style.top = `${e.clientY}px`;
@@ -581,6 +583,8 @@ function buildThreeApp(container) {
     if (lastTX > innerWidth / 2) {
       ptrX = THREE.MathUtils.clamp((lastTX / innerWidth) * 2 - 1, -1, 1);
       ptrY = THREE.MathUtils.clamp(-((lastTY / innerHeight) * 2 - 1), -1, 1);
+      ptrScreenX = lastTX;
+      ptrScreenY = lastTY;
     }
   };
   const onTouchEnd = () => { touchOn = false; touchDX = 0; touchDY = 0; touchShootHeld = false; };
@@ -590,6 +594,8 @@ function buildThreeApp(container) {
     camera.updateProjectionMatrix();
     renderer.setSize(innerWidth, innerHeight);
     composer.setSize(innerWidth, innerHeight);
+    ptrScreenX = innerWidth / 2;
+    ptrScreenY = innerHeight / 2;
   };
 
   // ── RUN STATE ────────────────────────────────────────────────────
@@ -636,7 +642,7 @@ function buildThreeApp(container) {
   let crashCount = 0, assistMode = false, assistEnd = 0;
 
   // Ghost deletion timings
-  const ghostTimes = [28, 38, 44, 49];
+  const ghostTimes = [18, 32, 48, 62];
   const ghostFired = [false, false, false, false];
 
   // Banner
@@ -665,27 +671,92 @@ function buildThreeApp(container) {
     bullets.push(new Bullet(spawnPos, dir, target));
   }
 
-  function getAimTarget(from) {
-    const mouseVec = new THREE.Vector3(ptrX, ptrY, 0.5);
-    mouseVec.unproject(camera);
-    const baseDir = mouseVec.sub(camera.position).normalize();
-
-    // Snap assist: find nearest core within 25deg of aim direction
-    const SNAP_CONE_RAD = THREE.MathUtils.degToRad(25);
+  function getLockCandidate(from, baseDir, {
+    coneDeg = 10,
+    lockRadiusScale = 0.045,
+    minAheadDistance = 16,
+    maxAheadDistance = 125,
+    maxDist = 135,
+    frustumX = 0.86,
+    frustumY = 0.82,
+    minCameraDepth = 18,
+    angleWeight = 220,
+  } = {}) {
+    const LOCK_CONE_RAD = THREE.MathUtils.degToRad(coneDeg);
+    const LOCK_RADIUS_PX = Math.min(innerWidth, innerHeight) * lockRadiusScale;
     let bestCore = null;
-    let bestAngle = SNAP_CONE_RAD;
+    let bestScore = Infinity;
 
     for (const c of cores) {
       if (!c.active) continue;
-      const dist = c.mesh.position.distanceTo(from);
-      if (dist > 150) continue; // Only lock on visible cores
-      const toCore = c.mesh.position.clone().sub(from).normalize();
+
+      const corePos = c.mesh.position.clone();
+      const aheadDistance = from.z - corePos.z;
+      if (aheadDistance < minAheadDistance || aheadDistance > maxAheadDistance) continue;
+
+      const toCoreVec = corePos.clone().sub(from);
+      const dist = toCoreVec.length();
+      if (dist > maxDist) continue;
+
+      const toCore = toCoreVec.normalize();
       const angle = baseDir.angleTo(toCore);
-      if (angle < bestAngle) {
-        bestAngle = angle;
+      if (angle > LOCK_CONE_RAD) continue;
+
+      const cameraSpace = corePos.clone().applyMatrix4(camera.matrixWorldInverse);
+      if (cameraSpace.z > -minCameraDepth) continue;
+
+      const projected = corePos.project(camera);
+      if (projected.z <= -1 || projected.z >= 1) continue;
+      if (Math.abs(projected.x) > frustumX || Math.abs(projected.y) > frustumY) continue;
+
+      const screenX = ((projected.x + 1) * 0.5) * innerWidth;
+      const screenY = ((1 - projected.y) * 0.5) * innerHeight;
+      const cursorDist = Math.hypot(screenX - ptrScreenX, screenY - ptrScreenY);
+      if (cursorDist > LOCK_RADIUS_PX) continue;
+
+      const score = cursorDist + angle * angleWeight + aheadDistance * 0.08;
+      if (score < bestScore) {
+        bestScore = score;
         bestCore = c;
       }
     }
+
+    return bestCore;
+  }
+
+  function getCursorLockCandidate(from, baseDir) {
+    return getLockCandidate(from, baseDir, {
+      coneDeg: 10,
+      lockRadiusScale: 0.045,
+      minAheadDistance: 16,
+      maxAheadDistance: 125,
+      maxDist: 135,
+      frustumX: 0.86,
+      frustumY: 0.82,
+      minCameraDepth: 18,
+      angleWeight: 220,
+    });
+  }
+
+  function getAimBaseDirection() {
+    const mouseVec = new THREE.Vector3(ptrX, ptrY, 0.5);
+    mouseVec.unproject(camera);
+    return mouseVec.sub(camera.position).normalize();
+  }
+
+  function getAimTarget(from) {
+    const baseDir = getAimBaseDirection();
+    const bestCore = getLockCandidate(camera.position, baseDir, {
+      coneDeg: 16,
+      lockRadiusScale: 0.07,
+      minAheadDistance: 16,
+      maxAheadDistance: 115,
+      maxDist: 150,
+      frustumX: 0.82,
+      frustumY: 0.76,
+      minCameraDepth: 18,
+      angleWeight: 165,
+    });
 
     if (bestCore) {
       const dist = bestCore.mesh.position.distanceTo(from);
@@ -812,7 +883,12 @@ function buildThreeApp(container) {
 
     group.scale.setScalar(scale);
     group.userData = {
-      health: 1, speed: 11 + Math.random() * 7,
+      health: 1,
+      speed: (() => {
+        const baseSpeed = 9 + Math.random() * 5;
+        const timeBonus = Math.min(wallTime / 30, 1) * 8;
+        return baseSpeed + timeBonus;
+      })(),
       phase: Math.random() * Math.PI * 2,
       rotSpd: 2 + Math.random() * 2,
       generation: gen,
@@ -923,7 +999,7 @@ function buildThreeApp(container) {
           disruptMeter = Math.min(1, disruptMeter + CFG.DISRUPTION_GAIN_PER_HIT);
 
           // Update escape time (hybrid win condition)
-          escapeTimeNeeded = Math.max(CFG.MIN_ESCAPE_TIME, CFG.BASE_ESCAPE_TIME - cdRef.val * CFG.TIME_REDUCTION_PER_CORE);
+          escapeTimeNeeded = Math.max(CFG.MIN_ESCAPE_TIME, CFG.BASE_ESCAPE_TIME - cdRef.val * CFG.TIME_REDUCTION_PER_AI_BOT);
 
           aiTroll?.onCoreDestroyed(cdRef.val, CFG.AI_BOTS_FOR_INSTANT_WIN);
           updateHUD(cdRef.val, escapeTimeNeeded);
@@ -999,6 +1075,8 @@ function buildThreeApp(container) {
   function unlockPortal(cores) {
     if (portalUnlocked) return;
     portalUnlocked = true;
+    aiDirector.reset();
+    ctrlsInverted = false;
 
     if (cores >= CFG.AI_BOTS_FOR_INSTANT_WIN) {
       aiTroll?.pushLine("NO. You destroyed them all. The lock is GONE.");
@@ -1018,16 +1096,15 @@ function buildThreeApp(container) {
       sfx.play("portal");
     }
 
-    // Clear any obstacles near the portal so the exit is clean
-    const PORTAL_CLEARANCE = 260;
-    for (const p of [rings, walls, firewalls, windmills]) {
-      if (!p) continue;
-      for (const o of p) {
-        if (o.active && Math.abs(o.group.position.z - portalSafeZ) < PORTAL_CLEARANCE) {
-          o.group.visible = false; o.active = false;
-        }
-      }
-    }
+    // Freeze hazards so the portal run is clean and readable.
+    bullets.forEach(b => b.destroy());
+    bullets = [];
+    cores.forEach(c => {
+      c.active = false;
+      if (c.mesh.parent) _scene.remove(c.mesh);
+    });
+    cores = [];
+    deactivateAll(rings, walls, firewalls, windmills);
   }
 
   // ── HUD UPDATE ────────────────────────────────────────────────────
@@ -1071,7 +1148,7 @@ function buildThreeApp(container) {
     } else if (remaining <= 1) {
       progressText = `AI BOTS ${cores}/${CFG.AI_BOTS_FOR_INSTANT_WIN} | ONE MORE AI BOT OPENS THE PORTAL | ${Math.ceil(timeLeft)}s FALLBACK | HULL ${Math.ceil(health)}`;
     } else {
-      const nextUnlockTime = Math.max(CFG.MIN_ESCAPE_TIME, escapeNeeded - CFG.TIME_REDUCTION_PER_CORE);
+      const nextUnlockTime = Math.max(CFG.MIN_ESCAPE_TIME, escapeNeeded - CFG.TIME_REDUCTION_PER_AI_BOT);
       progressText = `AI BOTS ${cores}/${CFG.AI_BOTS_FOR_INSTANT_WIN} | ${remaining} MORE CUTS THE TIMER TO ${Math.ceil(nextUnlockTime)}s | ${Math.ceil(timeLeft)}s FALLBACK | HULL ${Math.ceil(health)}`;
     }
     G.hudProgress.textContent = progressText;
@@ -1441,19 +1518,25 @@ function buildThreeApp(container) {
 
     // ── OBSTACLES ──────────────────────────────────────────────────
     const density = getDensity(diffT);
-    const spawnResult = spawnObstacles(rings, walls, firewalls, windmills, shipAnchor.position.z, density, spawnState, diffT, obTargX, obTargY, portalSafeZ, wallTime, lastObstacleClearedAt);
-    if (spawnResult && spawnResult.lastObstacleClearedAt !== undefined) lastObstacleClearedAt = spawnResult.lastObstacleClearedAt;
-    animateObstacles(rings, walls, windmills, diffT, dt);
+    if (!portalUnlocked) {
+      const spawnResult = spawnObstacles(rings, walls, firewalls, windmills, shipAnchor.position.z, density, spawnState, diffT, obTargX, obTargY, portalSafeZ, wallTime, lastObstacleClearedAt);
+      if (spawnResult && spawnResult.lastObstacleClearedAt !== undefined) lastObstacleClearedAt = spawnResult.lastObstacleClearedAt;
+      animateObstacles(rings, walls, windmills, diffT, dt);
+    }
 
-    // AI bot waves: 1-3 bots every 8 seconds, only when there is room to react.
+    // AI bot waves ramp from a single teachable target into denser late-game pressure.
     coreSpawnTimer -= rawDt;
-    if (coreSpawnTimer <= 0) {
+    if (!portalUnlocked && coreSpawnTimer <= 0) {
       const timeSinceObstacle = wallTime - lastObstacleClearedAt;
       if (timeSinceObstacle < CFG.AI_BOT_OBSTACLE_GRACE_PERIOD) {
         coreSpawnTimer = CFG.AI_BOT_SPAWN_RETRY_DELAY;
       } else {
         coreSpawnTimer = CFG.AI_BOT_SPAWN_INTERVAL;
-        const spawnCount = THREE.MathUtils.randInt(CFG.AI_BOT_MIN_SPAWN_COUNT, CFG.AI_BOT_MAX_SPAWN_COUNT);
+        const spawnCount = THREE.MathUtils.clamp(
+          getWaveSize(wallTime),
+          CFG.AI_BOT_MIN_SPAWN_COUNT,
+          CFG.AI_BOT_MAX_SPAWN_COUNT
+        );
         const waveSlots = [];
         for (let i = 0; i < spawnCount; i++) {
           if (cores.length + waveSlots.length >= CFG.MAX_AI_BOTS) break;
@@ -1476,7 +1559,7 @@ function buildThreeApp(container) {
         showChapterBanner("AIM WITH MOUSE · CLICK TO SHOOT", "#ff4488", 3000);
       }
     }
-    updateCores(dt, shipAnchor.position.z);
+    if (!portalUnlocked) updateCores(dt, shipAnchor.position.z);
 
     // ── BULLETS ────────────────────────────────────────────────────
     for (let i = bullets.length - 1; i >= 0; i--) {
@@ -1484,7 +1567,7 @@ function buildThreeApp(container) {
     }
 
     // ── GHOSTS ─────────────────────────────────────────────────────
-    ghostSys.update(shipAnchor.position.z, wallTime, dt, aiTroll, ghostTimes, ghostFired);
+    if (!portalUnlocked) ghostSys.update(shipAnchor.position.z, wallTime, dt, aiTroll, ghostTimes, ghostFired);
 
     // ── PORTAL CHECK ───────────────────────────────────────────────
     if (!portalUnlocked) {
@@ -1511,8 +1594,11 @@ function buildThreeApp(container) {
 
     // Portal collision
     if (!endSeq && portalUnlocked && portalSys.group.visible) {
-      const pd = shipAnchor.position.distanceTo(portalSys.group.position);
-      if (pd < 18) triggerWin();
+      const dx = shipAnchor.position.x - portalSys.group.position.x;
+      const dy = shipAnchor.position.y - portalSys.group.position.y;
+      const dz = shipAnchor.position.z - portalSys.group.position.z;
+      const pd = Math.hypot(dx, dy, dz);
+      if (pd < 24 || (Math.abs(dz) < 10 && Math.hypot(dx, dy) < 14)) triggerWin();
     }
 
     // Start portal (webring return)
@@ -1533,7 +1619,7 @@ function buildThreeApp(container) {
     }
 
     // ── COLLISION DETECTION ────────────────────────────────────────
-    if (!endSeq && invuln <= 0) {
+    if (!endSeq && !portalUnlocked && invuln <= 0) {
       const safetyMargin = isEarly ? 0.5 : 0;
       const hz = detectHazards(pAABB, nmAABB, oAABB, shipAnchor, rings, walls, firewalls, windmills, safetyMargin);
       const nowMs = performance.now();
@@ -1549,12 +1635,17 @@ function buildThreeApp(container) {
     }
 
     // ── AI DIRECTOR ────────────────────────────────────────────────
-    aiDirector.update(wallTime);
-    ctrlsInverted = aiDirector.isControlsInverted();
+    if (!portalUnlocked) {
+      aiDirector.update(wallTime);
+      ctrlsInverted = aiDirector.isControlsInverted();
+    } else {
+      ctrlsInverted = false;
+    }
 
     // Post FX
     let chrAmt = 0.002;
-    if (aiDirector.isFragmentLight()) chrAmt = 0.024 + Math.sin(performance.now() * 0.008) * 0.012;
+    if (portalUnlocked) chrAmt = 0.002;
+    else if (aiDirector.isFragmentLight()) chrAmt = 0.024 + Math.sin(performance.now() * 0.008) * 0.012;
     else if (aiTroll?.state === "BROKEN") chrAmt = THREE.MathUtils.mapLinear(diffT, 55, 65, 0.004, 0.016);
     else if (aiTroll?.state === "PANICKING") chrAmt = 0.005;
     chromaPass.uniforms.amount.value = THREE.MathUtils.lerp(chromaPass.uniforms.amount.value, chrAmt, 0.12);
@@ -1595,8 +1686,8 @@ function buildThreeApp(container) {
     syncBanner();
 
     // Crosshair lock-on feedback
-    const { target: aimTarget } = getAimTarget(shipAnchor.position);
-    if (aimTarget) {
+    const visibleLockTarget = getCursorLockCandidate(camera.position, getAimBaseDirection());
+    if (visibleLockTarget) {
       G.crosshair.classList.add("is-locked");
     } else {
       G.crosshair.classList.remove("is-locked");
@@ -1636,22 +1727,28 @@ function buildThreeApp(container) {
 // GAME SPEED + DIFFICULTY
 // ═══════════════════════════════════════════════════════════════════
 function getSpeed(t) {
-  if (t >= 180) return 125;
-  if (t >= 135) return THREE.MathUtils.mapLinear(t, 135, 180, 110, 125);
-  if (t >= 100) return THREE.MathUtils.mapLinear(t, 100, 135, 98, 110);
-  if (t >= 70) return THREE.MathUtils.mapLinear(t, 70, 100, 85, 98);
-  if (t >= 50) return THREE.MathUtils.mapLinear(t, 50, 70, 70, 85);
-  if (t >= 25) return THREE.MathUtils.mapLinear(t, 25, 50, 52, 70);
-  return THREE.MathUtils.mapLinear(t, 0, 25, 42, 52);
+  if (t >= 110) return 130;
+  if (t >= 85) return THREE.MathUtils.mapLinear(t, 85, 110, 115, 130);
+  if (t >= 60) return THREE.MathUtils.mapLinear(t, 60, 85, 100, 115);
+  if (t >= 40) return THREE.MathUtils.mapLinear(t, 40, 60, 82, 100);
+  if (t >= 20) return THREE.MathUtils.mapLinear(t, 20, 40, 60, 82);
+  return THREE.MathUtils.mapLinear(t, 0, 20, 42, 60);
 }
 
 function getDensity(t) {
-  if (t < 10) return 0.3;
-  if (t < 30) return THREE.MathUtils.mapLinear(t, 10, 30, 0.3, 0.58);
-  if (t < 60) return THREE.MathUtils.mapLinear(t, 30, 60, 0.58, 0.78);
-  if (t < 120) return THREE.MathUtils.mapLinear(t, 60, 120, 0.78, 0.92);
-  if (t < 180) return THREE.MathUtils.mapLinear(t, 120, 180, 0.92, 0.98);
-  return 0.98;
+  if (t < 10) return 0.2;
+  if (t < 25) return THREE.MathUtils.mapLinear(t, 10, 25, 0.2, 0.45);
+  if (t < 50) return THREE.MathUtils.mapLinear(t, 25, 50, 0.45, 0.7);
+  if (t < 80) return THREE.MathUtils.mapLinear(t, 50, 80, 0.7, 0.88);
+  if (t < 110) return THREE.MathUtils.mapLinear(t, 80, 110, 0.88, 0.95);
+  return 0.95;
+}
+
+function getWaveSize(wallTime) {
+  if (wallTime < 20) return 1;
+  if (wallTime < 40) return 2;
+  if (wallTime < 70) return THREE.MathUtils.randInt(2, 3);
+  return THREE.MathUtils.randInt(2, 3);
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -2240,23 +2337,17 @@ function buildStartPortal(sys, referrer, playerZ) {
 // ═══════════════════════════════════════════════════════════════════
 function buildAIDirector(ai, hooks) {
   const schedule = [
-    // Phase 1: Early aggression (20-60s)
-    { key: "INVERT_CONTROLS", at: 20, dur: 6 },
-    { key: "COMPRESS_SPACE", at: 32, dur: 6 },
-    { key: "FRAGMENT_LIGHT", at: 40, dur: 5 },
-    { key: "OPTIMIZE_PATH", at: 47, dur: 5 },
-    // Phase 2: Mid-game harassment (60-120s)
-    { key: "INVERT_CONTROLS", at: 65, dur: 6 },
-    { key: "FRAGMENT_LIGHT", at: 75, dur: 5 },
-    { key: "COMPRESS_SPACE", at: 85, dur: 6 },
-    { key: "OPTIMIZE_PATH", at: 95, dur: 5 },
-    { key: "INVERT_CONTROLS", at: 105, dur: 6 },
-    // Phase 3: Late game chaos (120-180s)
-    { key: "FRAGMENT_LIGHT", at: 125, dur: 5 },
-    { key: "COMPRESS_SPACE", at: 135, dur: 7 },
-    { key: "OPTIMIZE_PATH", at: 145, dur: 5 },
-    { key: "INVERT_CONTROLS", at: 155, dur: 8 },
-    { key: "FRAGMENT_LIGHT", at: 165, dur: 5 },
+    { key: "INVERT_CONTROLS", at: 18, dur: 5 },
+    { key: "COMPRESS_SPACE", at: 28, dur: 5 },
+    { key: "FRAGMENT_LIGHT", at: 36, dur: 4 },
+    { key: "OPTIMIZE_PATH", at: 44, dur: 5 },
+    { key: "INVERT_CONTROLS", at: 55, dur: 6 },
+    { key: "FRAGMENT_LIGHT", at: 65, dur: 5 },
+    { key: "COMPRESS_SPACE", at: 75, dur: 6 },
+    { key: "OPTIMIZE_PATH", at: 83, dur: 5 },
+    { key: "INVERT_CONTROLS", at: 92, dur: 7 },
+    { key: "FRAGMENT_LIGHT", at: 100, dur: 5 },
+    { key: "COMPRESS_SPACE", at: 108, dur: 6 },
   ].map(e => ({ ...e, fired: false, until: 0 }));
 
   let invertOn = false, compressOn = false, fragOn = false;
@@ -2317,6 +2408,8 @@ class AITroll {
     this._isSpeaking = false;
     this._speechToken = 0;
     this._currentSpeech = null;
+    this._speechWatchdog = null;
+    this._introTimers = [];
     this.nextAutoLineAt = 5.5;
     this.nextGlobalLineAt = CFG.AI_GLOBAL_LINE_INTERVAL;
   }
@@ -2626,6 +2719,19 @@ class AITroll {
     return Math.max(2600, spokenMs + 1400 + priority * 600);
   }
 
+  _clearIntroTimers() {
+    this._introTimers.forEach(timerId => clearTimeout(timerId));
+    this._introTimers = [];
+  }
+
+  _scheduleIntroLine(text, delayMs, options = {}) {
+    const timerId = setTimeout(() => {
+      this.show(text, options);
+      this._introTimers = this._introTimers.filter(id => id !== timerId);
+    }, delayMs);
+    this._introTimers.push(timerId);
+  }
+
   _delayAmbient(seconds = this._nextAmbientDelay()) {
     this.nextAutoLineAt = Math.max(this.nextAutoLineAt, this.t + seconds);
   }
@@ -2642,6 +2748,7 @@ class AITroll {
     this.t = 0;
     this.introActive = true;
     this._recentPicks.clear();
+    this._clearIntroTimers();
     this.nextAutoLineAt = 5.5;
     this.nextGlobalLineAt = CFG.AI_GLOBAL_LINE_INTERVAL;
     if (this.box) {
@@ -2653,11 +2760,15 @@ class AITroll {
     this._isSpeaking = false;
     this._currentSpeech = null;
     this._speechToken++;
+    clearTimeout(this._speechWatchdog);
+    this._speechWatchdog = null;
     if (this.synth) this.synth.cancel();
   }
 
   pushFirstLine() {
-    const rules = "destroy 10 ai bots. each one cuts 10 seconds off the lock. or survive 180 seconds and wait for the breach to tear it open.";
+    this._clearIntroTimers();
+    const aimLine = "aim with mouse. click or space to shoot.";
+    const rules = "destroy 15 ai bots to open the portal early. or survive 120 seconds.";
     if (GLOBAL_STATS.deathsThisSession > 0) {
       const retryMsg = this._pick([
         "you have come to try again. admirable. foolish. but admirable.",
@@ -2673,25 +2784,28 @@ class AITroll {
     }
     const greeting = this.name
       ? this._pick([
-          `oh. ${this.name}. i've been waiting. this world is already collapsing. the exit is mine. shoot my ai bots if you want it early.`,
-          `${this.name}. you arrived just in time for the collapse. the portal is locked. break my ai bots if you want out before the void decides for you.`,
-          `welcome, ${this.name}. the world is failing and the exit belongs to me. shoot the ai bots if you think you can steal it.`,
+          `oh. ${this.name}. the world is collapsing, and the portal is locked. shoot my ai bots if you want out early.`,
+          `${this.name}. you arrived just in time for the collapse. break my ai bots if you want the portal sooner.`,
+          `welcome, ${this.name}. the exit belongs to me. shoot the ai bots if you think you can steal it.`,
         ])
       : this._pick([
-          "another pilot. the world is collapsing. the portal is locked. shoot my ai bots to break it early, or survive 180 seconds if you prefer bad odds.",
-          "anonymous again. fine. the world is failing, the portal is sealed, and only my ai bots can hurry the unlock. prediction: neither plan works for you.",
-          "unnamed pilot detected. collapse in progress. portal locked. destroy my ai bots to cut the timer, or wait 180 seconds and hope the void is patient.",
+          "another pilot. the world is collapsing, and the portal is locked. shoot my ai bots to break it early.",
+          "anonymous again. fine. the world is failing, the portal is sealed, and my ai bots can hurry the unlock.",
+          "unnamed pilot detected. collapse in progress. portal locked. destroy my ai bots to cut the timer.",
         ]);
     showChapterBanner("CHAPTER I: THE AI IS SMUG", this.colors.SMUG, 2200);
-    this.show(greeting, { priority: 3, interrupt: true, ttlMs: 7000 });
-    setTimeout(() => {
-      this.show("MOVE YOUR MOUSE TO AIM. CLICK OR SPACE TO SHOOT.", { priority: 4, interrupt: false, ttlMs: 5000 });
-    }, 2500);
-    setTimeout(() => {
-      this.show(rules, { priority: 3, interrupt: true, ttlMs: 8000 });
-    }, 5000);
+    const greetingOptions = { priority: 3, interrupt: true, ttlMs: 9000 };
+    const aimOptions = { priority: 4, interrupt: false, ttlMs: 4800 };
+    const rulesOptions = { priority: 3, interrupt: false, ttlMs: 6500 };
+    this.show(greeting, greetingOptions);
+
+    const greetingDelay = this._estimateSpeechTtlMs(greeting, 0.84, greetingOptions.priority) + 250;
+    const aimDelay = greetingDelay;
+    const rulesDelay = aimDelay + this._estimateSpeechTtlMs(aimLine, 0.9, aimOptions.priority) + 250;
+    this._scheduleIntroLine(aimLine, aimDelay, aimOptions);
+    this._scheduleIntroLine(rules, rulesDelay, rulesOptions);
     this.introActive = false;
-    this.nextAutoLineAt = this.t + 6 + Math.random() * 1.5;
+    this.nextAutoLineAt = this.t + (rulesDelay / 1000) + 3.2;
     this.nextGlobalLineAt = CFG.AI_GLOBAL_LINE_INTERVAL;
   }
 
@@ -2852,7 +2966,7 @@ class AITroll {
   }
 
   onCoreDestroyed(count, required) {
-    const timeLeft = Math.max(CFG.MIN_ESCAPE_TIME, CFG.BASE_ESCAPE_TIME - count * CFG.TIME_REDUCTION_PER_CORE);
+    const timeLeft = Math.max(CFG.MIN_ESCAPE_TIME, CFG.BASE_ESCAPE_TIME - count * CFG.TIME_REDUCTION_PER_AI_BOT);
     if (count >= required) {
       this.pushLine("the lock is gone. you were not supposed to solve me.", {
         priority: 3,
@@ -2911,6 +3025,8 @@ class AITroll {
       this._isSpeaking = false;
       this._currentSpeech = null;
       this._speechQueue = [];
+      clearTimeout(this._speechWatchdog);
+      this._speechWatchdog = null;
       this.synth.cancel();
     }
 
@@ -2928,6 +3044,9 @@ class AITroll {
   }
 
   stopSpeech() {
+    this._clearIntroTimers();
+    clearTimeout(this._speechWatchdog);
+    this._speechWatchdog = null;
     if (this.synth) {
       this._speechToken++;
       this.synth.cancel();
@@ -2965,6 +3084,14 @@ class AITroll {
     this._isSpeaking = true;
     this._currentSpeech = { dedupeKey };
     const token = ++this._speechToken;
+    const finishSpeech = () => {
+      if (token !== this._speechToken) return;
+      clearTimeout(this._speechWatchdog);
+      this._speechWatchdog = null;
+      this._isSpeaking = false;
+      this._currentSpeech = null;
+      this._processSpeechQueue();
+    };
     try {
       const utt = new SpeechSynthesisUtterance(text);
       utt.rate = rate;
@@ -2973,20 +3100,15 @@ class AITroll {
       const voices = this.synth.getVoices();
       const voice = voices.find(v => /Google|Microsoft|Samantha|Zira/i.test(v.name)) || voices[0];
       if (voice) utt.voice = voice;
-      utt.onend = () => {
-        if (token !== this._speechToken) return;
-        this._isSpeaking = false;
-        this._currentSpeech = null;
-        this._processSpeechQueue();
-      };
-      utt.onerror = () => {
-        if (token !== this._speechToken) return;
-        this._isSpeaking = false;
-        this._currentSpeech = null;
-        this._processSpeechQueue();
-      };
+      const watchdogMs = Math.max(2500, this._estimateSpeechTtlMs(text, rate, 1) + 800);
+      clearTimeout(this._speechWatchdog);
+      this._speechWatchdog = setTimeout(finishSpeech, watchdogMs);
+      utt.onend = finishSpeech;
+      utt.onerror = finishSpeech;
       this.synth.speak(utt);
     } catch (e) {
+      clearTimeout(this._speechWatchdog);
+      this._speechWatchdog = null;
       this._isSpeaking = false;
       this._currentSpeech = null;
       this._processSpeechQueue();
