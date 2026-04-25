@@ -14,7 +14,7 @@ SKYBREAK isn't just another endless runner. It's a **survival shooter with a nar
 
 ## How to Play
 
-**Objective:** Destroy 10 glitch cores OR survive 180 seconds to unlock the portal and escape
+**Objective:** Destroy 15 glitch cores OR survive 120 seconds to unlock the portal and escape
 
 **Controls:**
 - **WASD** or **Arrow Keys** - Move your ship
@@ -23,15 +23,15 @@ SKYBREAK isn't just another endless runner. It's a **survival shooter with a nar
 - **Touch** - Mobile support (right side to shoot)
 
 **Hybrid Win Condition:**
-- Each core destroyed reduces escape time by 10 seconds
-- Destroy 10 cores to instantly unlock the portal
+- Each AI bot destroyed reduces escape time by 3 seconds
+- Destroy 15 AI bots to instantly unlock the portal
 - Or survive the remaining time to unlock it
 
 **Health System:**
 - You have 100 HP
-- Obstacle collisions deal 34 damage
-- Core contact deals 18 damage
-- 1.1 seconds of invulnerability after taking damage
+- Obstacle collisions deal 40 damage
+- Core contact deals 22 damage
+- 0.9 seconds of invulnerability after taking damage
 
 ---
 
@@ -43,13 +43,13 @@ The AI watches your every move, growing increasingly desperate as you prove too 
 
 | Phase | Duration | Description |
 |-------|----------|-------------|
-| **Mockery** | 0s - 45s | Confident, insulting, certain of your failure |
-| **Suspicion** | 45s - 100s (55s) | Paranoid that you're cheating |
-| **Aggression** | 100s - 160s (60s) | Actively sabotages with inverted controls, space compression, visual glitches |
-| **Panic** | 160s - 185s (25s) | The insults stop. Fear sets in. |
-| **Broken** | 185s+ | Complete breakdown as you approach the portal |
+| **Mockery** | 0s - 30s | Confident, insulting, certain of your failure |
+| **Suspicion** | 30s - 65s | Paranoid that you're cheating |
+| **Aggression** | 65s - 100s | Actively sabotages with direct attacks |
+| **Panic** | 100s - 115s | The insults stop. Fear sets in. |
+| **Broken** | 115s+ | Complete breakdown as you approach the portal |
 
-**Note:** The AI phases accelerate based on your "disruption" meter (filled by destroying cores). The more cores you destroy, the faster the AI breaks down.
+**Note:** `Signal Break` now tracks permanent breach progress from destroyed AI bots. It rises toward 100% as you tear open the exit.
 
 ### **The Escape Moment**
 Hit the portal to shatter reality. The AI's final words:  
@@ -101,29 +101,30 @@ Obstacles spawn progressively based on survival time:
 
 ### **AI Attacks**
 
-The AI sabotages you with repeated attacks throughout the 3-minute run. Each attack type triggers multiple times:
+The AI sabotages you with repeated attacks throughout the run. Each attack type triggers multiple times:
 
 | Attack | Trigger Times | Duration | Effect |
 |--------|---------------|----------|--------|
-| **Invert Controls** | 20s, 65s, 105s, 155s | 6-8s | Left/right and up/down inputs are reversed |
-| **Compress Space** | 32s, 85s, 135s | 6-7s | Tunnel narrows from 25 units to 12.5 units radius |
-| **Fragment Light** | 40s, 75s, 125s, 165s | 5s | Heavy visual glitching, screen flickers, strong chromatic aberration, intense camera shake |
-| **Optimize Path** | 47s, 95s, 145s | 5s | Forces wall corridor obstacles with tight gaps |
+| **Invert Controls** | 18s, 55s, 92s | 5-7s | Left/right and up/down inputs are reversed |
+| **Compress Space** | 28s, 75s, 108s | 5-6s | Tunnel narrows and demands tighter movement |
+| **Fragment Light** | 36s, 65s, 100s | 4-5s | Heavy visual glitching, screen flickers, and camera shake |
+| **Optimize Path** | 44s, 83s | 5s | Forces wall corridor obstacles with tight gaps |
 
 **Attack Phases:**
-- **Phase 1 (20-60s):** Introduces each attack type once
-- **Phase 2 (60-120s):** Repeats attacks with increased frequency
-- **Phase 3 (120-180s):** Maximum harassment, longer durations, overlapping effects possible
+- **Phase 1 (18-44s):** Introduces each attack type once
+- **Phase 2 (55-83s):** Repeats attacks with increased pressure
+- **Phase 3 (92-108s):** Final harassment just before collapse
 
-### **Glitch Cores**
+### **AI Bots**
 - Pink/red octahedrons that float toward you
 - **Shoot them** to destroy and reduce escape time
-- Each core destroyed = -10 seconds from escape requirement
+- Each bot destroyed = -3 seconds from escape requirement
 - Contact with cores deals damage
 
 ### **Disruption Meter**
-- Fills up as you destroy cores
-- Visual indicator of your progress toward the portal
+- Shown in HUD as `Signal Break`
+- Fills permanently as you destroy AI bots
+- Visual indicator of breach progress toward the portal
 
 ### **Ghost System**
 - **Other "players"** appear as ghost ships with names from tech culture
@@ -136,7 +137,7 @@ The AI sabotages you with repeated attacks throughout the 3-minute run. Each att
 
 This is the Gold Prize sequence designed for maximum impact:
 
-1. **Portal unlocks** when you destroy 10 cores OR survive the required time
+1. **Portal unlocks** when you destroy 15 AI bots OR survive the required time
 2. **Rainbow torus portal** appears ahead of you
 3. **Camera FOV** increases for tunnel vision effect
 4. **AI breakdown** with overlapping fragmented text
@@ -149,7 +150,7 @@ This is the Gold Prize sequence designed for maximum impact:
 
 ### **Innovation in Narrative Gaming**
 - **Psychological storytelling** through dynamic AI dialogue
-- **Emotional arc** in just 60 seconds
+- **Emotional arc** in just 120 seconds
 - **Metagame integration** with webring escape
 
 ### **Technical Achievement**
@@ -233,7 +234,7 @@ npm run dev
 - **Average session:** 3-5 minute runs depending on skill
 
 ### **Engagement Metrics**
-- **Session length:** 1-3 minutes depending on skill and strategy
+- **Session length:** 1-2 minutes depending on skill and strategy
 - **Viral potential:** Portal escape moment
 - **Community integration:** Vibe Jam webring
 

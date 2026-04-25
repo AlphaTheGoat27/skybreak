@@ -11,7 +11,7 @@ import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 const CFG = {
   // Hybrid win condition
   BASE_ESCAPE_TIME: 120,
-  TIME_REDUCTION_PER_AI_BOT: 8,
+  TIME_REDUCTION_PER_AI_BOT: 3,
   AI_BOTS_FOR_INSTANT_WIN: 15,
   MIN_ESCAPE_TIME: 60,
 
@@ -217,6 +217,7 @@ const G = {
   hudObjective: document.getElementById("hud-objective"),
   hudProgress: document.getElementById("hud-progress"),
   portalArrow: document.getElementById("portal-arrow"),
+  disruptionLabel: document.getElementById("disruption-label"),
   disruptionFill: document.getElementById("disruption-fill"),
   integrityFill: document.getElementById("integrity-fill"),
   crosshair: document.getElementById("crosshair"),
@@ -1029,11 +1030,9 @@ function buildThreeApp(container) {
           cores.splice(closestIdx, 1);
           cdRef.val++;
 
-          // Disruption gain
-          disruptMeter = Math.min(1, disruptMeter + CFG.DISRUPTION_GAIN_PER_HIT);
-
           // Update escape time (hybrid win condition)
           escapeTimeNeeded = Math.max(CFG.MIN_ESCAPE_TIME, CFG.BASE_ESCAPE_TIME - cdRef.val * CFG.TIME_REDUCTION_PER_AI_BOT);
+          disruptMeter = THREE.MathUtils.clamp(cdRef.val / CFG.AI_BOTS_FOR_INSTANT_WIN, 0, 1);
 
           aiTroll?.onCoreDestroyed(cdRef.val, CFG.AI_BOTS_FOR_INSTANT_WIN);
           updateHUD(cdRef.val, escapeTimeNeeded);
@@ -1202,6 +1201,11 @@ function buildThreeApp(container) {
 
     // Disruption bar
     G.disruptionFill.style.width = `${disruptMeter * 100}%`;
+    G.disruptionFill.dataset.state = disruptMeter >= 1 ? "max" : disruptMeter >= 0.66 ? "high" : disruptMeter >= 0.33 ? "mid" : "low";
+    if (G.disruptionLabel) {
+      const breakPct = Math.round(disruptMeter * 100);
+      G.disruptionLabel.textContent = breakPct > 0 ? `SIGNAL BREAK ${breakPct}%` : "SIGNAL BREAK";
+    }
 
     // PB
     const pb = Number(localStorage.getItem(CFG.KEY_BEST) || 0);
@@ -1437,7 +1441,6 @@ function buildThreeApp(container) {
     invuln = Math.max(0, invuln - rawDt);
     camKick = Math.max(0, camKick - rawDt * 3);
     bannerTimer = Math.max(0, bannerTimer - rawDt);
-    disruptMeter = Math.max(0, disruptMeter - rawDt * 0.012);
 
     // Assist mode expiry
     if (assistMode && wallTime >= assistEnd) { assistMode = false; }
