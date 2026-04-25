@@ -1183,14 +1183,13 @@ function buildThreeApp(container) {
     // Progress
     let progressText;
     if (portalUnlocked) {
-      progressText = `PORTAL OPEN | FLY THROUGH THE RING | HULL ${Math.ceil(health)}`;
+      progressText = `PORTAL OPEN | FLY THROUGH THE RING`;
     } else if (cores === 0) {
-      progressText = `AI BOTS 0/${CFG.AI_BOTS_FOR_INSTANT_WIN} | PORTAL UNLOCKS AT ${Math.ceil(escapeNeeded)}s OR AFTER ${CFG.AI_BOTS_FOR_INSTANT_WIN} AI BOTS | HULL ${Math.ceil(health)}`;
+      progressText = `AI BOTS 0/${CFG.AI_BOTS_FOR_INSTANT_WIN} | EACH BOT WORTH 5 SECONDS`;
     } else if (remaining <= 1) {
-      progressText = `AI BOTS ${cores}/${CFG.AI_BOTS_FOR_INSTANT_WIN} | ONE MORE AI BOT OPENS THE PORTAL | ${Math.ceil(timeLeft)}s FALLBACK | HULL ${Math.ceil(health)}`;
+      progressText = `AI BOTS ${cores}/${CFG.AI_BOTS_FOR_INSTANT_WIN} | ONE MORE BOT OPENS THE PORTAL`;
     } else {
-      const nextUnlockTime = Math.max(CFG.MIN_ESCAPE_TIME, escapeNeeded - CFG.TIME_REDUCTION_PER_AI_BOT);
-      progressText = `AI BOTS ${cores}/${CFG.AI_BOTS_FOR_INSTANT_WIN} | ${remaining} MORE CUTS THE TIMER TO ${Math.ceil(nextUnlockTime)}s | ${Math.ceil(timeLeft)}s FALLBACK | HULL ${Math.ceil(health)}`;
+      progressText = `AI BOTS ${cores}/${CFG.AI_BOTS_FOR_INSTANT_WIN} | ${remaining} MORE BOTS NEEDED`;
     }
     G.hudProgress.textContent = progressText;
 
