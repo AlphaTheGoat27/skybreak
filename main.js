@@ -23,7 +23,7 @@ const CFG = {
 
   // Shooting
   BULLET_SPEED: 145,
-  BULLET_LIFETIME: 3.0,
+  BULLET_LIFETIME: 1.5,
   SHOOT_COOLDOWN: 0.3,
   DISRUPTION_GAIN_PER_HIT: 0.09,
 
@@ -485,7 +485,7 @@ class Bullet {
     if (this.trail[0]) this.trail[0].position.copy(this.mesh.position);
 
     const age = (performance.now() - this.born) / 1000;
-    if (age > CFG.BULLET_LIFETIME || this.dist > 450) { this.destroy(); return false; }
+    if (age > CFG.BULLET_LIFETIME || this.dist > 100) { this.destroy(); return false; }
     return true;
   }
 
@@ -784,8 +784,8 @@ function buildThreeApp(container) {
     mouseVec.unproject(camera);
     const baseDir = mouseVec.sub(camera.position).normalize();
 
-    // Snap assist: find nearest core within 25 degrees of aim direction
-    const SNAP_CONE_RAD = THREE.MathUtils.degToRad(25);
+    // Snap assist: find nearest core within 17 degrees of aim direction
+    const SNAP_CONE_RAD = THREE.MathUtils.degToRad(17);
     let bestCore = null;
     let bestAngle = SNAP_CONE_RAD;
 
