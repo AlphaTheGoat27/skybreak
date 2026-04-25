@@ -84,6 +84,7 @@ body {
 }
 
 .hud.is-active { opacity: 1; }
+.hud.is-active.is-ending { opacity: 0.18; transition-duration: 220ms; }
 
 /* ── Top corners ─────────────────────────────────────────────────── */
 .hud-timer {

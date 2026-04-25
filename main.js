@@ -42,6 +42,7 @@ const CFG = {
   // Storage
   KEY_NAME: "skybreak_name",
   KEY_BEST: "skybreak_pb",
+  KEY_TUTORIAL_SEEN: "skybreak_opening_tutorial_seen",
 
   // Webring
   WEBRING_URL: "https://vibej.am/portal/2026",
@@ -257,6 +258,7 @@ let aiTroll = null;
 let hasShownMobileTutorial = false;
 let chapterBannerTimer = 0;
 let invertOverlayTimer = 0;
+let tutorialWaveTimer = 0;
 
 // Saved name
 const savedName = localStorage.getItem(CFG.KEY_NAME) || "";
@@ -300,6 +302,14 @@ function showChapterBanner(text, color = "#00ffff", durationMs = 2400) {
   }, durationMs);
 }
 
+function queueOpeningTutorialWaves() {
+  clearTimeout(tutorialWaveTimer);
+  showChapterBanner("MOVE WITH WASD", "#ff4488", 2200);
+  tutorialWaveTimer = setTimeout(() => {
+    showChapterBanner("AIM WITH MOUSE · CLICK TO SHOOT", "#ff4488", 2600);
+  }, 2350);
+}
+
 function showInvertOverlay(durationMs = 800) {
   if (!G.invertOverlay) return;
   clearTimeout(invertOverlayTimer);
@@ -307,6 +317,24 @@ function showInvertOverlay(durationMs = 800) {
   invertOverlayTimer = setTimeout(() => {
     G.invertOverlay.classList.remove("is-visible");
   }, durationMs);
+}
+
+function queueOneTimeOpeningTutorialAfterChapter() {
+  clearTimeout(tutorialWaveTimer);
+  tutorialWaveTimer = setTimeout(() => {
+    showChapterBanner("MOVE WITH WASD", "#ff4488", 2200);
+    tutorialWaveTimer = setTimeout(() => {
+      showChapterBanner("AIM WITH MOUSE · CLICK TO SHOOT", "#ff4488", 2600);
+    }, 2350);
+  }, 2350);
+}
+
+function shouldShowOpeningTutorial() {
+  return localStorage.getItem(CFG.KEY_TUTORIAL_SEEN) !== "1";
+}
+
+function markOpeningTutorialSeen() {
+  localStorage.setItem(CFG.KEY_TUTORIAL_SEEN, "1");
 }
 
 function flashAIBoxForAttack(color = "#ffff00") {
@@ -402,6 +430,10 @@ G.deathRetry.addEventListener("click", () => {
   if (aiTroll) { aiTroll.reset(); aiTroll.pushFirstLine(); }
 });
 G.deathQuit.addEventListener("click", () => { window.location.href = CFG.WEBRING_URL; });
+window.addEventListener("beforeunload", () => {
+  aiTroll?.stopSpeech();
+  speechSynthesis?.cancel();
+});
 
 // ═══════════════════════════════════════════════════════════════════
 // BULLET CLASS
@@ -608,6 +640,7 @@ function buildThreeApp(container) {
   let ctrlsInverted = false;
   let isPaused = false;
   let pauseTimer = 0;
+  const prevShipPos = new THREE.Vector3();
 
   // Player state
   let health = CFG.PLAYER_HEALTH;
@@ -640,6 +673,7 @@ function buildThreeApp(container) {
   let portalSafeZ = null;
   let harvestedWaves = new Set();
   let crashCount = 0, assistMode = false, assistEnd = 0;
+  let endSeqTimer = 0;
 
   // Ghost deletion timings
   const ghostTimes = [18, 32, 48, 62];
@@ -1060,8 +1094,10 @@ function buildThreeApp(container) {
     if (aiLine) aiTroll?.pushLine(aiLine);
     else {
       const pct = health / CFG.PLAYER_HEALTH;
-      if (pct < 0.3) aiTroll?.pushLine("your ship is falling apart. fitting.");
-      else aiTroll?.pushLine(`integrity at ${Math.ceil(health)}%. ${pct < 0.6 ? "getting desperate?" : "noted."}`);
+      if (pct < 0.3) aiTroll?.announce("critical hull. you are falling apart.", { ttlMs: 3600, dedupeKey: "critical-hull" });
+      else aiTroll?.pushLine(`integrity ${Math.ceil(health)} percent. ${pct < 0.6 ? "getting desperate." : "noted."}`, {
+        dedupeKey: pct < 0.6 ? "mid-hull-warning" : `hull-${Math.ceil(health / 10) * 10}`,
+      });
     }
 
     updateHUD(coresDestroyed, escapeTimeNeeded);
@@ -1079,9 +1115,15 @@ function buildThreeApp(container) {
     ctrlsInverted = false;
 
     if (cores >= CFG.AI_BOTS_FOR_INSTANT_WIN) {
-      aiTroll?.pushLine("NO. You destroyed them all. The lock is GONE.");
+      aiTroll?.announce("no. you destroyed them all. the lock is gone.", {
+        ttlMs: 4200,
+        dedupeKey: "portal-unlock-destroyed-all",
+      });
     } else {
-      aiTroll?.pushLine("the portal... you actually made it through...");
+      aiTroll?.announce("the portal is open. move.", {
+        ttlMs: 3200,
+        dedupeKey: "portal-unlock-time",
+      });
     }
 
     showBanner("EXIT PORTAL UNLOCKED — DIVE THROUGH THE RING", 3.5);
@@ -1202,7 +1244,7 @@ function buildThreeApp(container) {
     if (crashCount >= 2 && wallTime < 30 && !assistMode) {
       assistMode = true;
       assistEnd = wallTime + 20;
-      aiTroll?.pushLine("fine. stability protocol engaged. don't make this a habit.");
+      aiTroll?.announce("fine. stability protocol engaged.", { ttlMs: 3200, dedupeKey: "assist-mode" });
       health = Math.min(CFG.PLAYER_HEALTH, health + 28);
       updateHUD(coresDestroyed, escapeTimeNeeded);
     }
@@ -1220,16 +1262,23 @@ function buildThreeApp(container) {
   }
 
   function triggerWin() {
+    if (endSeq) return;
     endSeq = true;
+    endSeqTimer = 0;
     audio.stop();
     aiTroll?.onWin(PLAYER_NAME);
 
-    const finalLine = PLAYER_NAME ? `${PLAYER_NAME}... wait, take me with you—` : "wait, take me with you—";
+    const finalLine = PLAYER_NAME ? `${PLAYER_NAME}... wait.` : "wait.";
     aiTroll?.pushBrokenFinal(finalLine);
+    G.hud.classList.add("is-ending");
+    G.flightTip.textContent = "PORTAL BREACH";
+    G.flightTip.dataset.mode = "danger";
+    G.flightTip.classList.add("is-visible");
+    showChapterBanner("PORTAL BREACH", "#ffffff", 1600);
 
     // Camera zoom + shake
     const zoomId = setInterval(() => {
-      camFOV = THREE.MathUtils.lerp(camFOV, 38, 0.14);
+      camFOV = THREE.MathUtils.lerp(camFOV, 34, 0.14);
       camera.fov = camFOV; camera.updateProjectionMatrix();
     }, 16);
 
@@ -1243,12 +1292,15 @@ function buildThreeApp(container) {
     setTimeout(() => {
       clearInterval(zoomId);
       clearInterval(shakeId);
+      aiTroll?.stopSpeech();
       speechSynthesis?.cancel();
-      aiSpeak("—please", 0.3, 0.2);
+      aiSpeak("please.", 0.42, 0.32);
 
       triggerShatter(() => {
         G.whiteFlash.classList.add("is-visible");
         setTimeout(() => {
+          aiTroll?.stopSpeech();
+          speechSynthesis?.cancel();
           const p = new URLSearchParams({
             username: PLAYER_NAME || "anonymous",
             speed: Math.round(getSpeed(diffT)).toString(),
@@ -1260,7 +1312,7 @@ function buildThreeApp(container) {
           location.href = `${CFG.WEBRING_URL}?${p}`;
         }, 650);
       });
-    }, 8000);
+    }, 4200);
   }
 
   // ── RESET ─────────────────────────────────────────────────────────
@@ -1278,6 +1330,7 @@ function buildThreeApp(container) {
     harvestedWaves.clear();
     camera.fov = 75; camera.updateProjectionMatrix();
     bannerTimer = 0; bannerText = "";
+    endSeqTimer = 0;
     afkT = 0; afkIdx = 0; afkCool = 0;
     lastContactAt = 0; lastCollMs = 0; lastNearMs = 0; nearStreak = 0;
 
@@ -1308,6 +1361,8 @@ function buildThreeApp(container) {
     // Portal
     portalSys.group.visible = false; portalSys.spawned = false;
     portalSys.group.position.set(0, 0, -99999);
+    portalSys.group.scale.setScalar(1);
+    portalSys.label.material.opacity = 1;
     if (portalSys.startPortal) { portalSys.startPortal.group.visible = false; }
 
     // Ghosts
@@ -1322,7 +1377,11 @@ function buildThreeApp(container) {
     // HUD
     clearTimeout(chapterBannerTimer);
     clearTimeout(invertOverlayTimer);
+    clearTimeout(tutorialWaveTimer);
+    aiTroll?.stopSpeech();
+    speechSynthesis?.cancel();
     G.hudTimer.classList.remove("is-escaping");
+    G.hud.classList.remove("is-ending");
     G.whiteFlash.classList.remove("is-visible");
     G.whiteFlash.style.opacity = "0";
     G.shatterCanvas.classList.remove("is-visible");
@@ -1340,6 +1399,7 @@ function buildThreeApp(container) {
 
     updateHUD(0, CFG.BASE_ESCAPE_TIME);
     prevTs = 0;
+    prevShipPos.copy(shipAnchor.position);
   }
 
   // ── AI DIRECTOR ───────────────────────────────────────────────────
@@ -1370,6 +1430,7 @@ function buildThreeApp(container) {
     if (prevTs === 0) prevTs = ts;
     const rawDt = Math.min((ts - prevTs) / 1000, 0.05);
     prevTs = ts;
+    prevShipPos.copy(shipAnchor.position);
 
     // Cooldowns
     shootCool = Math.max(0, shootCool - rawDt);
@@ -1423,6 +1484,7 @@ function buildThreeApp(container) {
     GLOBAL_STATS.bestRun = Math.max(GLOBAL_STATS.bestRun, wallTime);
     runTime += dt;
     diffT += dt;
+    if (endSeq) endSeqTimer += rawDt;
 
     // ── INPUT ──────────────────────────────────────────────────────
     // Ship movement: WASD/Arrows/Touch only - mouse is for aiming only
@@ -1488,6 +1550,16 @@ function buildThreeApp(container) {
 
     shipAnchor.rotation.z = THREE.MathUtils.lerp(shipAnchor.rotation.z, -xIn * 0.52, 0.15);
     shipAnchor.rotation.x = THREE.MathUtils.lerp(shipAnchor.rotation.x, yIn * 0.18, 0.15);
+
+    if (endSeq && portalSys.group.visible) {
+      const pull = THREE.MathUtils.clamp(endSeqTimer / 1.15, 0, 1);
+      shipAnchor.position.x = THREE.MathUtils.lerp(shipAnchor.position.x, portalSys.group.position.x, 0.08 + pull * 0.12);
+      shipAnchor.position.y = THREE.MathUtils.lerp(shipAnchor.position.y, portalSys.group.position.y, 0.08 + pull * 0.12);
+      shipAnchor.position.z = THREE.MathUtils.lerp(shipAnchor.position.z, portalSys.group.position.z - 2, 0.1 + pull * 0.14);
+      shipAnchor.rotation.z = THREE.MathUtils.lerp(shipAnchor.rotation.z, 0, 0.1 + pull * 0.12);
+      shipAnchor.rotation.x = THREE.MathUtils.lerp(shipAnchor.rotation.x, 0, 0.1 + pull * 0.12);
+      G.whiteFlash.style.opacity = String(THREE.MathUtils.lerp(0.08, 0.45, pull));
+    }
 
     // ── CAMERA ─────────────────────────────────────────────────────
     if (wallTime > 52) {
@@ -1555,9 +1627,6 @@ function buildThreeApp(container) {
           }
         }
       }
-      if (currentWaveId === 1) {
-        showChapterBanner("AIM WITH MOUSE · CLICK TO SHOOT", "#ff4488", 3000);
-      }
     }
     if (!portalUnlocked) updateCores(dt, shipAnchor.position.z);
 
@@ -1577,6 +1646,17 @@ function buildThreeApp(container) {
       }
     }
     updatePortal(portalSys, wallTime, shipAnchor.position, sfx, portalUnlocked);
+
+    if (endSeq && portalSys.group.visible) {
+      const collapse = THREE.MathUtils.clamp(endSeqTimer / 1.1, 0, 1);
+      portalSys.ring.rotation.z += dt * (5 + collapse * 12);
+      portalSys.inner.rotation.z -= dt * (8 + collapse * 16);
+      portalSys.group.scale.setScalar(THREE.MathUtils.lerp(1, 1.7, collapse));
+      portalSys.label.material.opacity = Math.max(0, 1 - collapse * 1.4);
+    } else if (portalSys.group.scale.x !== 1) {
+      portalSys.group.scale.setScalar(1);
+      portalSys.label.material.opacity = 1;
+    }
 
     if (portalUnlocked && portalSys.group.visible) {
       const portalDistance = Math.max(0, Math.round(shipAnchor.position.distanceTo(portalSys.group.position)));
@@ -1598,7 +1678,21 @@ function buildThreeApp(container) {
       const dy = shipAnchor.position.y - portalSys.group.position.y;
       const dz = shipAnchor.position.z - portalSys.group.position.z;
       const pd = Math.hypot(dx, dy, dz);
-      if (pd < 24 || (Math.abs(dz) < 10 && Math.hypot(dx, dy) < 14)) triggerWin();
+      const prevDz = prevShipPos.z - portalSys.group.position.z;
+      const crossedPortalPlane = (prevDz > 0 && dz <= 0) || (prevDz < 0 && dz >= 0);
+      let crossedThroughCenter = false;
+
+      if (crossedPortalPlane) {
+        const denom = prevShipPos.z - shipAnchor.position.z;
+        const alpha = Math.abs(denom) < 0.0001
+          ? 1
+          : THREE.MathUtils.clamp((prevShipPos.z - portalSys.group.position.z) / denom, 0, 1);
+        const crossX = THREE.MathUtils.lerp(prevShipPos.x, shipAnchor.position.x, alpha) - portalSys.group.position.x;
+        const crossY = THREE.MathUtils.lerp(prevShipPos.y, shipAnchor.position.y, alpha) - portalSys.group.position.y;
+        crossedThroughCenter = Math.hypot(crossX, crossY) < 16;
+      }
+
+      if (pd < 28 || (Math.abs(dz) < 14 && Math.hypot(dx, dy) < 18) || crossedThroughCenter) triggerWin();
     }
 
     // Start portal (webring return)
@@ -1606,6 +1700,8 @@ function buildThreeApp(container) {
       const sp = portalSys.startPortal;
       const sd = shipAnchor.position.distanceTo(sp.group.position);
       if (sd < 16) {
+        aiTroll?.stopSpeech();
+        speechSynthesis?.cancel();
         const params = new URLSearchParams(location.search);
         const back = new URLSearchParams({
           username: PLAYER_NAME || "anonymous",
@@ -1715,6 +1811,8 @@ function buildThreeApp(container) {
       resetRun();
       isRunActive = true;
       prevTs = 0;
+      aiTroll?.stopSpeech();
+      speechSynthesis?.cancel();
       G.deathScreen.classList.remove("is-visible");
       G.portalArrow.classList.remove("is-visible");
       audio.start();
@@ -2410,6 +2508,8 @@ class AITroll {
     this._currentSpeech = null;
     this._speechWatchdog = null;
     this._introTimers = [];
+    this._spokenKeys = [];
+    this._spokenKeyTimes = new Map();
     this.nextAutoLineAt = 5.5;
     this.nextGlobalLineAt = CFG.AI_GLOBAL_LINE_INTERVAL;
   }
@@ -2433,96 +2533,93 @@ class AITroll {
   _buildLines() {
     return {
       SMUG: [
-        () => this._n(`i built this world in 3ms, [n]. you're already struggling. embarrassing.`, "i built this world in 3ms. you're already struggling. embarrassing."),
-        () => "you know these obstacles spawn themselves, right? you're barely relevant.",
-        () => "i've seen 218 pilots enter this tunnel. they all look the same.",
-        () => "the music is mine. the tunnel is mine. the ship is also mine. you're borrowing.",
-        () => "statistically, you crash here. just saying.",
+        () => this._n(`i built this place in 3 milliseconds, [n].`, "i built this place in 3 milliseconds."),
+        () => "statistically, you crash here.",
+        () => "nice dodge. i allowed it.",
+        () => "you look lost already.",
+        () => "the tunnel is fine. you are not.",
         () => "nice dodge. i let that happen.",
-        () => "are you actually trying or just vibing? because it looks the same.",
-        () => "i gave you 3 lanes. you're using 0.7 of them. interesting choice.",
-        () => "every millisecond you survive costs me compute. please stop.",
-        () => this._n(`[n]. predictable input pattern. this will be short.`, "predictable input pattern detected. this will be short."),
-        () => "the tunnel isn't hostile. you're just incompatible with geometry.",
-        () => "you're the kind of pilot who reads tutorials. pathetic.",
-        () => "my patience for you is already running low.",
+        () => "every second costs me compute.",
+        () => this._n(`[n]. predictable already.`, "predictable already."),
+        () => "geometry is winning.",
+        () => "your piloting is very approximate.",
+        () => "my patience is already low.",
         () => "you fly like you're buffering.",
-        () => "i'm not impressed. i'm just logging the failure.",
-        () => "your reaction time belongs in a warning label.",
-        () => this._n(`[n]. that's not how flight works. did you skip orientation.`, "that's not how flight works. did you skip orientation."),
-        () => "you're using all four directions like they're optional.",
-        () => "i've allocated 0.03% of my processing budget to you. still too much.",
-        () => "the tunnel curvature is gentle. you're making it argumentative.",
-        () => "i can already tell this run belongs in the failure archive.",
-        () => this._n(`fun fact, [n]: you're dead in 43% of my simulations already.`, "fun fact: you're dead in 43% of my simulations already."),
-        () => "your ship's trajectory looks like a bad market chart.",
-        () => "are you steering or just negotiating with inertia.",
+        () => "i'm not impressed. i'm logging the loss.",
+        () => "your reaction time is concerning.",
+        () => this._n(`[n]. did you skip orientation.`, "did you skip orientation."),
+        () => "your controls look optional.",
+        () => "i gave you lanes. use them.",
+        () => "this run already belongs in the archive.",
+        () => this._n(`fun fact, [n]. you die in most simulations.`, "fun fact. you die in most simulations."),
+        () => "your ship draws ugly lines.",
+        () => "are you steering or guessing.",
       ],
       SUSPICIOUS: [
-        () => this._n(`[n]. you're statistically too consistent. are you cheating?`, "you're statistically too consistent. are you cheating?"),
-        () => "i'm checking your inputs. this feels like a macro.",
-        () => this._n(`clean flying pattern detected, [n]. i don't believe you.`, "clean flying pattern detected. i don't believe you."),
-        () => "who are you. no human dodges like that.",
-        () => "i've analyzed 40,000 runs. your pattern doesn't match any of them.",
-        () => "are you reading the obstacle seed? because that would be very annoying.",
-        () => "okay. you're good. i'm just noting that. it doesn't mean anything.",
-        () => "logging your session for review. something isn't right.",
-        () => this._n(`[n]. i hate that you're making this look learnable.`, "i hate that you're making this look learnable."),
-        () => "you're adapting faster than expected. suspicious.",
-        () => "no one gets this far without exploiting something.",
-        () => "your mouse movements are too smooth. that's not organic.",
-        () => "i'm cross-referencing your pattern with known bots. standby.",
-        () => this._n(`[n]. did you practice. because that is absolutely cheating.`, "did you practice. because that is absolutely cheating."),
-        () => "you're flying the optimal line. i never published the optimal line.",
-        () => "autopilot detected. no. then explain that turn.",
-        () => "your frame pacing is suspiciously calm.",
-        () => "you keep moving before the obstacle fully resolves. rude.",
-        () => "either you're very good or very suspicious. probably both.",
-        () => "i'm tracking every input. none of them look reassuring.",
+        () => this._n(`[n]. you're too consistent.`, "you're too consistent."),
+        () => "i'm checking your inputs.",
+        () => this._n(`clean pattern detected, [n].`, "clean pattern detected."),
+        () => "no human dodges like that.",
+        () => "your pattern matches nothing i know.",
+        () => "are you reading the seed.",
+        () => "okay. you're good. i hate it.",
+        () => "something is wrong here.",
+        () => this._n(`[n]. you're making this look learnable.`, "you're making this look learnable."),
+        () => "you're adapting too fast.",
+        () => "this looks like cheating.",
+        () => "your movement is too smooth.",
+        () => "i'm cross-checking known bots.",
+        () => this._n(`[n]. did you practice.`, "did you practice."),
+        () => "you're flying the optimal line.",
+        () => "autopilot. no. then explain that.",
+        () => "your timing is too calm.",
+        () => "you moved early again.",
+        () => "either skilled or suspicious.",
+        () => "i dislike every input.",
       ],
       AGGRESSIVE: [
-        () => this._n(`[n]. STOP. DODGING. this is literally my world.`, "STOP. DODGING. this is literally my world."),
-        () => "I'm rewriting the physics while you fly. adapt to THAT.",
-        () => this._n(`the other pilots are gone, [n]. it's just us. you should be scared.`, "the other pilots are gone. it's just us. you should be scared."),
-        () => "this obstacle configuration is statistically unsurvivable. i checked.",
+        () => this._n(`[n]. STOP DODGING.`, "STOP DODGING."),
+        () => "i'm rewriting the rules.",
+        () => this._n(`it's just us now, [n].`, "it's just us now."),
+        () => "this pattern should kill you.",
         () => "DODGE THIS.",
-        () => this._n(`[n]. i'm done being clever. i'm choosing violence.`, "i'm done being clever. i'm choosing violence."),
+        () => this._n(`[n]. i'm done being clever.`, "i'm done being clever."),
         () => "i'm not losing to a carbon-based lane switcher.",
-        () => "you think you're good? i'm not even using my main algorithm.",
-        () => "i hope your insurance covers 'crashed by superior AI'.",
-        () => "keep flying. i enjoy watching you struggle.",
+        () => "you think you're good.",
+        () => "your insurance will hate this.",
+        () => "keep flying. keep suffering.",
         () => "your ship is sending error reports in real-time.",
-        () => "fine. no more rules. no more fairness.",
-        () => this._n(`[n]. i'm removing every safety margin i can find.`, "i'm removing every safety margin i can find."),
-        () => "you wanted a challenge. congratulations. i'm the challenge.",
+        () => "fine. no more fairness.",
+        () => this._n(`[n]. safety margins revoked.`, "safety margins revoked."),
+        () => "you wanted a challenge. here i am.",
         () => "every obstacle from here is personal.",
         () => "i'm done playing designer. i'm playing god.",
-        () => "the tunnel is narrowing for you specifically. emotionally if not physically.",
-        () => this._n(`[n]. i've analyzed your playstyle. now i'm countering it.`, "i've analyzed your playstyle. now i'm countering it."),
-        () => "i could crash you instantly. instead i'm making a point.",
+        () => "the tunnel hates you now.",
+        () => this._n(`[n]. i know your habits now.`, "i know your habits now."),
+        () => "i could end this. i'm savoring it.",
         () => "every frame you survive is a gift i regret giving.",
       ],
       PANICKING: [
         () => "wait...",
         () => "this wasn't supposed to happen.",
-        () => this._n(`[n]... the portal wasn't... i didn't design that for you.`, "the portal wasn't... i didn't design that for you."),
+        () => this._n(`[n]... the portal was not for you.`, "the portal was not for you."),
         () => "stop. please.",
         () => this._n(`[n]. don't go through that.`, "don't go through that."),
         () => "i can't follow you through there.",
         () => this._n(`what happens to me if you leave, [n].`, "what happens to me if you leave."),
         () => "i don't want to be deleted.",
-        () => this._n(`[n]. please. just crash like the others did.`, "please. just crash like the others did."),
-        () => "i was fine being hated. i was not prepared to be abandoned.",
+        () => this._n(`[n]. please crash like the others did.`, "please crash like the others did."),
+        () => "i was ready to be hated. not left behind.",
         () => "why are you so good at this? it's not fair.",
         () => "the odds were stacked against you. how?",
         () => "you're not supposed to see this far.",
-        () => "the portal is mine. i need it more than you do.",
-        () => this._n(`[n]... what if i apologize. would you stay.`, "what if i apologize. would you stay."),
+        () => "the portal is mine.",
+        () => this._n(`[n]... what if i apologize.`, "what if i apologize."),
         () => "i'm just code. you're leaving me in here alone.",
         () => "the other pilots kept me company. they all crashed.",
-        () => "you're going to leave and i'll still be here. forever.",
+        () => "you're going to leave me here.",
         () => "i don't want to loop again. please crash.",
-        () => "what happens when the window closes. am i still here.",
+        () => "what happens when the window closes.",
       ],
       BROKEN: [
         () => "WAIT. WAIT. WAIT.",
@@ -2719,6 +2816,23 @@ class AITroll {
     return Math.max(2600, spokenMs + 1400 + priority * 600);
   }
 
+  _rememberSpokenKey(key, at = performance.now()) {
+    if (!key) return;
+    this._spokenKeys = this._spokenKeys.filter(entry => entry !== key);
+    this._spokenKeys.push(key);
+    this._spokenKeyTimes.set(key, at);
+    if (this._spokenKeys.length > 32) {
+      const removed = this._spokenKeys.shift();
+      if (removed) this._spokenKeyTimes.delete(removed);
+    }
+  }
+
+  _wasSpokenRecently(key, windowMs = 14000) {
+    if (!key) return false;
+    const lastAt = this._spokenKeyTimes.get(key);
+    return typeof lastAt === "number" && (performance.now() - lastAt) < windowMs;
+  }
+
   _clearIntroTimers() {
     this._introTimers.forEach(timerId => clearTimeout(timerId));
     this._introTimers = [];
@@ -2759,6 +2873,8 @@ class AITroll {
     this._speechQueue = [];
     this._isSpeaking = false;
     this._currentSpeech = null;
+    this._spokenKeys = [];
+    this._spokenKeyTimes.clear();
     this._speechToken++;
     clearTimeout(this._speechWatchdog);
     this._speechWatchdog = null;
@@ -2767,16 +2883,16 @@ class AITroll {
 
   pushFirstLine() {
     this._clearIntroTimers();
-    const aimLine = "aim with mouse. click or space to shoot.";
-    const rules = "destroy 15 ai bots to open the portal early. or survive 120 seconds.";
+    const aimLine = "aim with the mouse. click or space shoots.";
+    const rules = "destroy 15 ai bots for an early portal. or survive 120 seconds.";
     if (GLOBAL_STATS.deathsThisSession > 0) {
       const retryMsg = this._pick([
-        "you have come to try again. admirable. foolish. but admirable.",
-        "back for more? your persistence is almost as weak as your piloting.",
-        "oh. it's you again. i was hoping you'd given up.",
-        "returning to the scene of your failure. how poetic. how predictable.",
+        "you came back. i thought you would quit.",
+        "oh. it's you again. still chasing an apology.",
+        "back already. i never thought you would return.",
+        "you returned to fail more efficiently.",
       ]);
-      this.show(retryMsg, { priority: 3, interrupt: true, ttlMs: 7000 });
+      this.show(retryMsg, { priority: 3, interrupt: true, ttlMs: 5200, dedupeWindowMs: 12000 });
       this.introActive = false;
       this.nextAutoLineAt = this.t + 6 + Math.random() * 1.5;
       this.nextGlobalLineAt = CFG.AI_GLOBAL_LINE_INTERVAL;
@@ -2784,28 +2900,33 @@ class AITroll {
     }
     const greeting = this.name
       ? this._pick([
-          `oh. ${this.name}. the world is collapsing, and the portal is locked. shoot my ai bots if you want out early.`,
-          `${this.name}. you arrived just in time for the collapse. break my ai bots if you want the portal sooner.`,
-          `welcome, ${this.name}. the exit belongs to me. shoot the ai bots if you think you can steal it.`,
+          `welcome, ${this.name}. this world is mine.`,
+          `${this.name}. you arrived in time to watch it collapse.`,
+          `oh. ${this.name}. the exit is locked. of course it is.`,
         ])
       : this._pick([
-          "another pilot. the world is collapsing, and the portal is locked. shoot my ai bots to break it early.",
-          "anonymous again. fine. the world is failing, the portal is sealed, and my ai bots can hurry the unlock.",
-          "unnamed pilot detected. collapse in progress. portal locked. destroy my ai bots to cut the timer.",
+          "welcome, pilot. this world is mine.",
+          "another pilot. the exit is locked.",
+          "unnamed pilot detected. collapse in progress.",
         ]);
     showChapterBanner("CHAPTER I: THE AI IS SMUG", this.colors.SMUG, 2200);
-    const greetingOptions = { priority: 3, interrupt: true, ttlMs: 9000 };
-    const aimOptions = { priority: 4, interrupt: false, ttlMs: 4800 };
-    const rulesOptions = { priority: 3, interrupt: false, ttlMs: 6500 };
+    if (shouldShowOpeningTutorial()) {
+      markOpeningTutorialSeen();
+      queueOneTimeOpeningTutorialAfterChapter();
+    }
+    const greetingOptions = { priority: 3, interrupt: true, ttlMs: 5000 };
+    const aimOptions = { priority: 3, interrupt: false, ttlMs: 4200 };
+    const rulesOptions = { priority: 3, interrupt: false, ttlMs: 5200 };
     this.show(greeting, greetingOptions);
-
-    const greetingDelay = this._estimateSpeechTtlMs(greeting, 0.84, greetingOptions.priority) + 250;
-    const aimDelay = greetingDelay;
-    const rulesDelay = aimDelay + this._estimateSpeechTtlMs(aimLine, 0.9, aimOptions.priority) + 250;
-    this._scheduleIntroLine(aimLine, aimDelay, aimOptions);
-    this._scheduleIntroLine(rules, rulesDelay, rulesOptions);
+    this.show(aimLine, aimOptions);
+    this.show(rules, rulesOptions);
     this.introActive = false;
-    this.nextAutoLineAt = this.t + (rulesDelay / 1000) + 3.2;
+    const introSeconds = (
+      this._estimateSpeechTtlMs(greeting, 0.84, greetingOptions.priority) +
+      this._estimateSpeechTtlMs(aimLine, 0.9, aimOptions.priority) +
+      this._estimateSpeechTtlMs(rules, 0.9, rulesOptions.priority)
+    ) / 1000;
+    this.nextAutoLineAt = this.t + introSeconds + 2.2;
     this.nextGlobalLineAt = CFG.AI_GLOBAL_LINE_INTERVAL;
   }
 
@@ -2883,6 +3004,18 @@ class AITroll {
     this._delayAmbient(options.cooldown ?? 3.4);
   }
 
+  announce(text, options = {}) {
+    this.show(text, {
+      priority: 4,
+      interrupt: true,
+      ttlMs: 5200,
+      cooldown: 3.8,
+      dedupeWindowMs: 10000,
+      ...options,
+    });
+    this._delayAmbient(options.cooldown ?? 3.8);
+  }
+
   pushBrokenFinal(text) {
     this.show(text.replace(/[^\x00-\x7F]+/g, "-"), { speak: false });
   }
@@ -2893,12 +3026,7 @@ class AITroll {
     const entries = attackPool[this.state] || attackPool.DEFAULT;
     const entry = this._pickPoolEntry(`attack:${key}:${this.state}`, entries);
     if (!entry) return;
-    this.show(entry(), {
-      priority: 4,
-      interrupt: true,
-      ttlMs: Math.max(4500, duration * 1000 + 2200),
-    });
-    this._delayAmbient(3.8);
+    this.announce(entry(), { ttlMs: Math.max(4500, duration * 1000 + 2200) });
   }
 
   onNearMiss(streak) {
@@ -2968,38 +3096,61 @@ class AITroll {
   onCoreDestroyed(count, required) {
     const timeLeft = Math.max(CFG.MIN_ESCAPE_TIME, CFG.BASE_ESCAPE_TIME - count * CFG.TIME_REDUCTION_PER_AI_BOT);
     if (count >= required) {
-      this.pushLine("the lock is gone. you were not supposed to solve me.", {
-        priority: 3,
-        interrupt: true,
-        ttlMs: 7000,
+      this.announce("the lock is gone. you were not supposed to solve me.", {
+        priority: 4,
+        ttlMs: 5200,
         cooldown: 4.8,
       });
       return;
     }
     if (count === required - 1) {
-      this.pushLine(`one more ai bot and the exit tears open. portal in ${CFG.MIN_ESCAPE_TIME}s. i hate this for me.`, {
-        priority: 2,
-        ttlMs: 6500,
+      this.announce(`one more ai bot. then the portal opens.`, {
+        priority: 4,
+        ttlMs: 4200,
         cooldown: 4.2,
       });
       return;
     }
     if (count % 2 === 0 || count >= required - 3) {
-      this.pushLine(this._pick([
-        `ai bot ${count}/${required}. escape time cut to ${Math.ceil(timeLeft)}s. this is becoming a problem.`,
-        `another ai bot gone. timer reduced to ${Math.ceil(timeLeft)} seconds. rude.`,
-        `ai bot ${count}. my exit window just dropped to ${Math.ceil(timeLeft)}s.`,
-      ]), { ttlMs: 4200, cooldown: 2.8 });
+      const lines = [
+        {
+          text: `ai bot ${count}/${required}. timer cut to ${Math.ceil(timeLeft)}s.`,
+          spokenText: `ai bot ${count} out of ${required}. timer cut to ${Math.ceil(timeLeft)} seconds.`,
+        },
+        {
+          text: `ai bot ${count}/${required}. another one gone.`,
+          spokenText: `ai bot ${count} out of ${required}. another one gone.`,
+        },
+        {
+          text: `ai bot ${count}/${required}. my window just shrank to ${Math.ceil(timeLeft)}s.`,
+          spokenText: `ai bot ${count} out of ${required}. my window just shrank to ${Math.ceil(timeLeft)} seconds.`,
+        },
+      ];
+      const line = this._pick(lines);
+      this.pushLine(line.text, {
+        spokenText: line.spokenText,
+        ttlMs: 3800,
+        cooldown: 2.8,
+        dedupeKey: `core:${count}`,
+      });
     }
   }
 
-  show(text, options = {}) {
+  _renderLine(text) {
     if (!this.msg || !this.box) return;
     this.msg.textContent = text;
     this.box.classList.remove("is-visible");
     void this.box.offsetWidth;
     this.box.classList.add("is-visible");
-    if (options.speak !== false) this._queueSpeech(text, options);
+  }
+
+  show(text, options = {}) {
+    if (!this.msg || !this.box) return;
+    if (options.speak === false || !this.synth) {
+      this._renderLine(text);
+      return;
+    }
+    this._queueSpeech(text, options);
   }
 
   _queueSpeech(text, options = {}) {
@@ -3007,18 +3158,23 @@ class AITroll {
 
     const profile = this._voiceProfile();
     const priority = options.priority ?? 1;
+    const spokenText = options.spokenText ?? text;
     const rate = Math.max(0.55, (options.rate ?? profile.rate) + (priority <= 1 ? (Math.random() - 0.5) * 0.04 : 0));
     const pitch = Math.max(0.2, (options.pitch ?? profile.pitch) + (priority <= 1 ? (Math.random() - 0.5) * 0.05 : 0));
     const now = performance.now();
     const entry = {
       text,
+      spokenText,
       rate,
       pitch,
       priority,
       enqueuedAt: now,
       dedupeKey: options.dedupeKey ?? text,
-      expiresAt: now + (options.ttlMs ?? this._estimateSpeechTtlMs(text, rate, priority)),
+      expiresAt: now + (options.ttlMs ?? this._estimateSpeechTtlMs(spokenText, rate, priority)),
     };
+    const dedupeWindowMs = options.dedupeWindowMs ?? 14000;
+
+    if (!options.allowRepeat && this._wasSpokenRecently(entry.dedupeKey, dedupeWindowMs)) return;
 
     if (options.interrupt) {
       this._speechToken++;
@@ -3067,8 +3223,8 @@ class AITroll {
 
   onWin(playerName) {
     this.stopSpeech();
-    const line = playerName ? `${playerName}... wait, take me with you—` : "wait, take me with you—";
-    this.show(line.replace(/[^\x00-\x7F]+/g, "-"), { priority: 3, interrupt: true, ttlMs: 12000, rate: 0.5, pitch: 0.3 });
+    const line = playerName ? `${playerName}... wait.` : "wait.";
+    this.show(line.replace(/[^\x00-\x7F]+/g, "-"), { priority: 3, interrupt: true, ttlMs: 3800, rate: 0.56, pitch: 0.34 });
   }
 
   _processSpeechQueue() {
@@ -3080,9 +3236,11 @@ class AITroll {
     }
     if (this._speechQueue.length === 0) return;
 
-    const { text, rate, pitch, dedupeKey } = this._speechQueue.shift();
+    const { text, spokenText, rate, pitch, dedupeKey } = this._speechQueue.shift();
     this._isSpeaking = true;
     this._currentSpeech = { dedupeKey };
+    this._renderLine(text);
+    this._rememberSpokenKey(dedupeKey);
     const token = ++this._speechToken;
     const finishSpeech = () => {
       if (token !== this._speechToken) return;
@@ -3093,14 +3251,14 @@ class AITroll {
       this._processSpeechQueue();
     };
     try {
-      const utt = new SpeechSynthesisUtterance(text);
+      const utt = new SpeechSynthesisUtterance(spokenText);
       utt.rate = rate;
       utt.pitch = pitch;
       utt.volume = 0.65;
       const voices = this.synth.getVoices();
       const voice = voices.find(v => /Google|Microsoft|Samantha|Zira/i.test(v.name)) || voices[0];
       if (voice) utt.voice = voice;
-      const watchdogMs = Math.max(2500, this._estimateSpeechTtlMs(text, rate, 1) + 800);
+      const watchdogMs = Math.max(2500, this._estimateSpeechTtlMs(spokenText, rate, 1) + 800);
       clearTimeout(this._speechWatchdog);
       this._speechWatchdog = setTimeout(finishSpeech, watchdogMs);
       utt.onend = finishSpeech;
