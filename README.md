@@ -23,7 +23,7 @@ SKYBREAK isn't just another endless runner. It's a **survival shooter with a nar
 - **Touch** - Mobile support (right side to shoot)
 
 **Hybrid Win Condition:**
-- Each AI bot destroyed reduces escape time by 3 seconds
+- Each AI bot destroyed reduces escape time by 5 seconds
 - Destroy 15 AI bots to instantly unlock the portal
 - Or survive the remaining time to unlock it
 
@@ -118,7 +118,7 @@ The AI sabotages you with repeated attacks throughout the run. Each attack type 
 ### **AI Bots**
 - Pink/red octahedrons that float toward you
 - **Shoot them** to destroy and reduce escape time
-- Each bot destroyed = -3 seconds from escape requirement
+- Each bot destroyed = -5 seconds from escape requirement
 - Contact with cores deals damage
 
 ### **Disruption Meter**

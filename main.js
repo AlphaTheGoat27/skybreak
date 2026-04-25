@@ -11,7 +11,7 @@ import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 const CFG = {
   // Hybrid win condition
   BASE_ESCAPE_TIME: 120,
-  TIME_REDUCTION_PER_AI_BOT: 3,
+  TIME_REDUCTION_PER_AI_BOT: 5,
   AI_BOTS_FOR_INSTANT_WIN: 15,
   MIN_ESCAPE_TIME: 60,
 
