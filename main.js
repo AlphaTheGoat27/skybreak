@@ -22,7 +22,7 @@ const CFG = {
   INVULN_TIME: 0.9,
 
   // Shooting
-  BULLET_SPEED: 230,
+  BULLET_SPEED: 145,
   BULLET_LIFETIME: 3.0,
   SHOOT_COOLDOWN: 0.3,
   DISRUPTION_GAIN_PER_HIT: 0.09,
@@ -305,7 +305,7 @@ function showChapterBanner(text, color = "#00ffff", durationMs = 2400) {
 
 function queueOpeningTutorialWaves() {
   clearTimeout(tutorialWaveTimer);
-  showChapterBanner("MOVE WITH WASD", "#ff4488", 2200);
+  showChapterBanner("MOVE WITH WASD OR ARROWS", "#ff4488", 2200);
   tutorialWaveTimer = setTimeout(() => {
     showChapterBanner("AIM WITH MOUSE · CLICK TO SHOOT", "#ff4488", 2600);
   }, 2350);
@@ -323,7 +323,7 @@ function showInvertOverlay(durationMs = 800) {
 function queueOneTimeOpeningTutorialAfterChapter() {
   clearTimeout(tutorialWaveTimer);
   tutorialWaveTimer = setTimeout(() => {
-    showChapterBanner("MOVE WITH WASD", "#ff4488", 2200);
+    showChapterBanner("MOVE WITH WASD OR ARROWS", "#ff4488", 2200);
     tutorialWaveTimer = setTimeout(() => {
       showChapterBanner("AIM WITH MOUSE · CLICK TO SHOOT", "#ff4488", 2600);
     }, 2350);
@@ -410,7 +410,7 @@ function startGame() {
     G.introInput.blur();
     G.introScreen.classList.add("is-fading");
     setTimeout(() => G.introScreen.classList.add("is-gone"), 500);
-    setTimeout(() => aiTroll.pushFirstLine(), 700);
+    setTimeout(() => aiTroll.pushFirstLine(true), 700);
   } catch (e) {
     G.introLabel.textContent = `[ERROR] ${e instanceof Error ? e.message : e}`;
     console.error(e);
@@ -780,20 +780,27 @@ function buildThreeApp(container) {
   }
 
   function getAimTarget(from) {
-    const baseDir = getAimBaseDirection();
-    const bestCore = getLockCandidate(camera.position, baseDir, {
-      coneDeg: 16,
-      lockRadiusScale: 0.07,
-      minAheadDistance: 16,
-      maxAheadDistance: 115,
-      maxDist: 150,
-      frustumX: 0.82,
-      frustumY: 0.76,
-      minCameraDepth: 18,
-      angleWeight: 165,
-    });
+    const mouseVec = new THREE.Vector3(ptrX, ptrY, 0.5);
+    mouseVec.unproject(camera);
+    const baseDir = mouseVec.sub(camera.position).normalize();
+
+    // Snap assist: find nearest core within 25 degrees of aim direction
+    const SNAP_CONE_RAD = THREE.MathUtils.degToRad(25);
+    let bestCore = null;
+    let bestAngle = SNAP_CONE_RAD;
+
+    for (const c of cores) {
+      if (!c.active) continue;
+      const toCore = c.mesh.position.clone().sub(from).normalize();
+      const angle = baseDir.angleTo(toCore);
+      if (angle < bestAngle) {
+        bestAngle = angle;
+        bestCore = c;
+      }
+    }
 
     if (bestCore) {
+      // Lead the target: predict where it will be when bullet arrives
       const dist = bestCore.mesh.position.distanceTo(from);
       const travelTime = dist / CFG.BULLET_SPEED;
       const predicted = bestCore.mesh.position.clone().add(
@@ -2883,11 +2890,11 @@ class AITroll {
     if (this.synth) this.synth.cancel();
   }
 
-  pushFirstLine() {
+  pushFirstLine(fromHomePage = false) {
     this._clearIntroTimers();
     const aimLine = "aim with the mouse. click or space shoots.";
     const rules = "destroy 15 ai bots for an early portal. or survive 120 seconds.";
-    if (GLOBAL_STATS.deathsThisSession > 0) {
+    if (!fromHomePage) {
       const retryMsg = this._pick([
         "you came back. i thought you would quit.",
         "oh. it's you again. still chasing an apology.",
@@ -2912,8 +2919,7 @@ class AITroll {
           "unnamed pilot detected. collapse in progress.",
         ]);
     showChapterBanner("CHAPTER I: THE AI IS SMUG", this.colors.SMUG, 2200);
-    if (shouldShowOpeningTutorial()) {
-      markOpeningTutorialSeen();
+    if (fromHomePage) {
       queueOneTimeOpeningTutorialAfterChapter();
     }
     const greetingOptions = { priority: 3, interrupt: true, ttlMs: 5000 };
