@@ -1240,3 +1240,355 @@ body {
   pointer-events: none;
   z-index: 1;
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   CONTROLS HUD — permanent side panels
+   ═══════════════════════════════════════════════════════════════════ */
+.controls-hud {
+  position: fixed;
+  top: 50%;
+  transform: translateY(-50%);
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 1.2rem 0.8rem;
+  background: rgba(0, 4, 8, 0.35);
+  border: 1px solid rgba(0, 255, 255, 0.08);
+  border-radius: 6px;
+  backdrop-filter: blur(2px);
+  pointer-events: none;
+  z-index: 8;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+
+.controls-hud.is-visible { opacity: 1; }
+
+.controls-hud--left {
+  left: 0.5rem;
+  border-left: none;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.controls-hud--right {
+  right: 0.5rem;
+  border-right: none;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.ctrl-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.ctrl-title {
+  font-size: 8.5px;
+  letter-spacing: 0.28em;
+  color: rgba(0, 255, 255, 0.4);
+  font-family: var(--mono);
+  text-align: center;
+}
+
+.ctrl-alt {
+  font-size: 7px;
+  letter-spacing: 0.12em;
+  color: rgba(255, 255, 255, 0.2);
+  font-family: var(--mono);
+  text-align: center;
+}
+
+.ctrl-key {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: rgba(0, 255, 255, 0.65);
+  background: rgba(0, 255, 255, 0.06);
+  border: 1px solid rgba(0, 255, 255, 0.2);
+  border-radius: 4px;
+  padding: 5px 8px;
+  min-width: 28px;
+  text-align: center;
+  line-height: 1.5;
+}
+
+.ctrl-key--wide {
+  min-width: 52px;
+  font-size: 10px;
+  padding: 5px 8px;
+}
+
+/* Boost key — yellow/gold accent */
+.ctrl-key--boost {
+  min-width: 64px;
+  font-size: 9.5px;
+  padding: 4px 8px;
+  color: rgba(255, 210, 0, 0.85);
+  background: rgba(255, 200, 0, 0.07);
+  border-color: rgba(255, 200, 0, 0.35);
+}
+
+/* Brake key — cyan accent */
+.ctrl-key--brake {
+  min-width: 64px;
+  font-size: 9.5px;
+  padding: 4px 8px;
+  color: rgba(0, 200, 255, 0.85);
+  background: rgba(0, 200, 255, 0.07);
+  border-color: rgba(0, 200, 255, 0.35);
+}
+
+.ctrl-throttle-row {
+  display: flex;
+  justify-content: center;
+}
+
+.ctrl-key-grid {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.ctrl-row {
+  display: flex;
+  gap: 2px;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Mouse icon */
+.ctrl-mouse-icon { display: flex; justify-content: center; }
+
+.ctrl-mouse-body {
+  width: 18px;
+  height: 26px;
+  border: 1.5px solid rgba(0, 255, 255, 0.3);
+  border-radius: 9px;
+  display: flex;
+  justify-content: center;
+  padding-top: 4px;
+  background: rgba(0, 255, 255, 0.04);
+}
+
+.ctrl-mouse-dot {
+  width: 4px;
+  height: 7px;
+  background: rgba(0, 255, 255, 0.5);
+  border-radius: 2px;
+  animation: mouse-scroll 1.8s ease-in-out infinite;
+}
+
+@keyframes mouse-scroll {
+  0%, 100% { transform: translateY(0); opacity: 0.5; }
+  50% { transform: translateY(4px); opacity: 1; }
+}
+
+/* Mobile variant — show touch hints instead of keyboard keys */
+.controls-hud--left.is-mobile .ctrl-key-grid,
+.controls-hud--left.is-mobile .ctrl-alt,
+.controls-hud--left.is-mobile .ctrl-title { display: none; }
+.controls-hud--left.is-mobile::after {
+  content: 'LEFT\AMOVE';
+  font-family: var(--mono);
+  font-size: 7px;
+  letter-spacing: 0.12em;
+  color: rgba(0, 255, 255, 0.4);
+  white-space: pre;
+  text-align: center;
+  line-height: 1.8;
+}
+
+.controls-hud--right.is-mobile .ctrl-mouse-icon,
+.controls-hud--right.is-mobile .ctrl-key--wide { display: none; }
+.controls-hud--right.is-mobile::after {
+  content: 'RIGHT\ASHOOT';
+  font-family: var(--mono);
+  font-size: 7px;
+  letter-spacing: 0.12em;
+  color: rgba(255, 200, 0, 0.4);
+  white-space: pre;
+  text-align: center;
+  line-height: 1.8;
+}
+/* On mobile, also swap throttle key labels to button labels */
+.controls-hud--right.is-mobile .ctrl-key--boost::before { content: '⚡'; margin-right: 2px; }
+.controls-hud--right.is-mobile .ctrl-key--brake::before { content: '⚓'; margin-right: 2px; }
+
+/* Hide on very narrow screens where they'd overlap gameplay */
+@media (max-width: 480px) {
+  .controls-hud { display: none !important; }
+}
+
+/* Hide right panel when MP leaderboard is visible */
+body:has(.mp-leaderboard.is-visible) .controls-hud--right {
+  opacity: 0 !important;
+}
+
+.boost-heat-bar  { border: 1px solid rgba(255, 200, 0, 0.35); box-shadow: 0 0 6px rgba(255,200,0,0.12); }
+.boost-heat-fill {
+  background: linear-gradient(90deg, #ffcc00, #ff4400);
+  transition: width 0.08s ease-out, background 0.15s ease;
+}
+.boost-heat-fill[data-state="critical"] {
+  background: #ff2200;
+  animation: pulse-red 0.3s ease-in-out infinite;
+}
+
+/* ── Mode Select ─────────────────────────────────────────────────── */
+.mode-select { display:flex; gap:1.2rem; flex-wrap:wrap; justify-content:center; }
+.mode-btn {
+  font-family:var(--mono); display:flex; flex-direction:column; align-items:center;
+  gap:0.45rem; padding:1.4rem 2rem; min-width:160px; background:rgba(0,10,15,0.75);
+  border:1px solid rgba(0,255,255,0.28); border-radius:5px; cursor:pointer;
+  transition:all 0.18s ease; color:var(--white);
+}
+.mode-btn:hover { border-color:var(--cyan); background:var(--cyan-g); transform:translateY(-4px); box-shadow:var(--glow-cyan); }
+.mode-btn-icon { font-size:2rem; }
+.mode-btn-title { font-size:1rem; letter-spacing:0.18em; color:var(--cyan); }
+.mode-btn-desc { font-size:0.68rem; color:rgba(255,255,255,0.45); text-align:center; }
+.mode-btn--multi { border-color:rgba(255,0,255,0.28); }
+.mode-btn--multi .mode-btn-title { color:var(--magenta); }
+.mode-btn--multi:hover { border-color:var(--magenta); box-shadow:var(--glow-magenta); }
+/* ── MP Setup ────────────────────────────────────────────────────── */
+.mp-setup { display:flex; flex-direction:column; gap:1rem; width:min(440px,90vw); }
+/* Kinetic drift hint in MP setup */
+.mp-controls-hint {
+  display:flex; flex-wrap:wrap; gap:0.5rem; justify-content:center; align-items:center;
+  padding:0.6rem 0.8rem; background:rgba(0,10,15,0.6);
+  border:1px solid rgba(0,255,255,0.12); border-radius:4px;
+}
+.mp-ctrl-tag {
+  font-family:var(--mono); font-size:0.72rem; letter-spacing:0.1em;
+  padding:3px 8px; border-radius:3px; font-weight:600;
+}
+.mp-ctrl-boost { color:rgba(255,200,0,0.9); background:rgba(255,200,0,0.08); border:1px solid rgba(255,200,0,0.3); }
+.mp-ctrl-brake { color:rgba(0,200,255,0.9); background:rgba(0,200,255,0.08); border:1px solid rgba(0,200,255,0.3); }
+.mp-ctrl-sub { font-size:0.6rem; color:rgba(255,255,255,0.28); letter-spacing:0.1em; width:100%; text-align:center; margin-top:0.2rem; }
+/* ── Room section ────────────────────────────────────────────────── */
+.room-section { display:flex; flex-direction:column; gap:0.5rem; }
+.room-row { display:flex; align-items:center; gap:0.6rem; }
+.room-code-input { font-family:var(--mono); flex:1; font-size:14px; letter-spacing:0.25em; text-transform:uppercase; text-align:center; padding:0.7rem; background:var(--void); border:1px solid rgba(0,255,255,0.3); border-radius:3px; color:var(--cyan); }
+.room-code-input:focus { outline:none; border-color:var(--cyan); box-shadow:var(--glow-cyan); }
+.room-or { font-size:0.7rem; color:rgba(255,255,255,0.3); white-space:nowrap; }
+.room-create-btn { font-family:var(--mono); font-size:0.72rem; letter-spacing:0.12em; padding:0.7rem 1rem; background:rgba(0,255,255,0.08); border:1px solid rgba(0,255,255,0.4); border-radius:3px; color:var(--cyan); cursor:pointer; white-space:nowrap; transition:all 0.15s ease; }
+.room-create-btn:hover { background:var(--cyan); color:var(--void); }
+.room-display { font-size:0.8rem; letter-spacing:0.1em; color:rgba(255,255,255,0.55); text-align:center; padding:0.5rem; background:rgba(0,255,255,0.04); border:1px solid rgba(0,255,255,0.15); border-radius:3px; cursor:pointer; }
+.room-code-big { font-size:1.3rem; color:var(--cyan); letter-spacing:0.3em; text-shadow:var(--glow-cyan); }
+.room-copy-hint { font-size:0.65rem; color:rgba(0,255,255,0.4); }
+/* ── Lobby ───────────────────────────────────────────────────────── */
+.mp-lobby { display:flex; flex-direction:column; align-items:center; gap:1rem; width:min(440px,90vw); padding:1.5rem; background:rgba(0,6,10,0.9); border:1px solid var(--cyan); border-radius:6px; }
+.lobby-title { font-size:0.78rem; letter-spacing:0.25em; color:rgba(0,255,255,0.7); }
+.lobby-countdown { font-size:2.8rem; color:#ffff00; letter-spacing:0.1em; text-shadow:0 0 20px rgba(255,255,0,0.7); font-weight:bold; min-height:3.5rem; display:flex; align-items:center; }
+.lobby-players { width:100%; display:flex; flex-direction:column; gap:0.4rem; max-height:200px; overflow-y:auto; }
+.lobby-player-row { display:flex; align-items:center; gap:0.7rem; padding:0.45rem 0.7rem; background:rgba(0,20,30,0.6); border-radius:3px; font-size:0.82rem; }
+.lobby-player-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+.lobby-player-name { flex:1; color:var(--white); }
+.lobby-player-hint { font-size:0.6rem; color:rgba(255,255,255,0.22); letter-spacing:0.06em; }
+.lobby-hint { font-size:0.65rem; color:rgba(255,255,255,0.28); text-align:center; }
+.lobby-share-link { font-size:0.62rem; color:rgba(0,255,255,0.5); cursor:pointer; word-break:break-all; padding:0.35rem 0.5rem; border:1px solid rgba(0,255,255,0.12); border-radius:3px; text-align:center; }
+.lobby-share-link:hover { color:var(--cyan); border-color:rgba(0,255,255,0.35); }
+/* ── In-game leaderboard ─────────────────────────────────────────── */
+.mp-leaderboard { position:fixed; top:50%; right:1.1rem; transform:translateY(-50%); width:230px; background:rgba(0,4,8,0.92); border:1px solid rgba(255,255,0,0.4); border-radius:4px; padding:0.9rem; opacity:0; transition:opacity 0.3s ease; pointer-events:none; z-index:15; }
+.mp-leaderboard.is-visible { opacity:1; }
+.mp-lb-title { font-size:10px; letter-spacing:0.2em; color:rgba(255,255,0,0.8); text-align:center; margin-bottom:0.7rem; padding-bottom:0.5rem; border-bottom:1px solid rgba(255,255,0,0.2); }
+.mp-lb-list { display:flex; flex-direction:column; gap:0.35rem; }
+.mp-lb-row { display:flex; align-items:center; gap:0.4rem; padding:0.35rem 0.5rem; background:rgba(0,15,22,0.7); border-radius:2px; font-size:11px; color:var(--white); }
+.mp-lb-row.is-you { border:1px solid rgba(255,255,0,0.6); background:rgba(255,255,0,0.05); }
+.mp-lb-row.is-dead { opacity:0.35; }
+.mp-lb-rank { color:rgba(255,255,0,0.55); min-width:18px; font-size:10px; }
+.mp-lb-name { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.mp-lb-kills { color:#ff6688; font-size:10px; min-width:24px; text-align:right; }
+.mp-lb-time { color:rgba(255,255,255,0.5); font-size:9px; min-width:28px; text-align:right; }
+.mp-session-timer { font-size:1.1rem; color:#ffff00; text-align:center; margin-top:0.7rem; padding-top:0.6rem; border-top:1px solid rgba(255,255,0,0.2); font-weight:bold; }
+/* ── Kill feed ───────────────────────────────────────────────────── */
+.kill-feed { position:fixed; top:9rem; right:1.1rem; width:250px; display:flex; flex-direction:column; gap:0.3rem; z-index:14; pointer-events:none; }
+.kill-feed-entry { font-size:11px; padding:0.3rem 0.6rem; background:rgba(0,0,0,0.75); border-left:2px solid #ff6688; border-radius:0 2px 2px 0; color:rgba(255,255,255,0.8); opacity:1; transition:opacity 0.5s ease; }
+.kill-feed-entry.fading { opacity:0; }
+/* ── Respawn overlay ─────────────────────────────────────────────── */
+.respawn-overlay { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(255,0,40,0.08); z-index:22; opacity:0; pointer-events:none; transition:opacity 0.2s ease; }
+.respawn-overlay.is-visible { opacity:1; }
+.respawn-text { font-size:2rem; color:#ff2244; letter-spacing:0.3em; text-shadow:0 0 30px rgba(255,0,40,0.9); animation:death-pulse 0.8s ease-in-out infinite; }
+/* ── MP end screen ───────────────────────────────────────────────── */
+.mp-end-screen { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.97); z-index:30; opacity:0; pointer-events:none; transition:opacity 0.4s ease; }
+.mp-end-screen.is-visible { opacity:1; pointer-events:auto; }
+.mp-end-content { display:flex; flex-direction:column; align-items:center; gap:1.2rem; padding:2.5rem; border:1px solid rgba(255,255,0,0.5); background:rgba(0,0,0,0.97); border-radius:6px; max-width:min(520px,92vw); text-align:center; }
+.mp-end-title { font-size:1.8rem; letter-spacing:0.2em; color:#ffff00; }
+.mp-end-rank { font-size:1.2rem; color:var(--cyan); padding:0.8rem 1.5rem; background:rgba(0,255,255,0.07); border-radius:4px; }
+.mp-end-list { width:100%; max-height:280px; overflow-y:auto; }
+.mp-end-buttons { display:flex; gap:1rem; margin-top:0.5rem; }
+
+/* ── Mobile throttle bar ─────────────────────────────────────────── */
+#mobile-throttle-bar { display:none; }
+@media (pointer: coarse) { #mobile-throttle-bar { display:flex; } }
+
+.mobile-throttle-btn {
+  font-family: var(--mono);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 0.45rem 0.9rem;
+  border-radius: 20px;
+  border: 1px solid;
+  background: transparent;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  transition: all 0.08s ease;
+  font-size: 1rem;
+}
+.mobile-throttle-btn--boost {
+  color: rgba(255,200,0,0.85);
+  border-color: rgba(255,200,0,0.4);
+}
+.mobile-throttle-btn--boost:active {
+  background: rgba(255,200,0,0.15);
+  box-shadow: 0 0 14px rgba(255,200,0,0.4);
+}
+.mobile-throttle-btn--brake {
+  color: rgba(0,200,255,0.85);
+  border-color: rgba(0,200,255,0.4);
+}
+.mobile-throttle-btn--brake:active {
+  background: rgba(0,200,255,0.12);
+  box-shadow: 0 0 12px rgba(0,200,255,0.3);
+}
+.mobile-throttle-label {
+  font-size: 7px;
+  letter-spacing: 0.14em;
+}
+.mobile-heat-bar {
+  width: 64px;
+  height: 8px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(0,255,255,0.2);
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.mobile-heat-fill {
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 0%;
+  background: linear-gradient(90deg, #ffcc00, #ff4400);
+  transition: width 0.1s ease;
+  border-radius: 4px;
+}
+.mobile-speed-text {
+  position: relative;
+  font-size: 7px;
+  color: rgba(0,255,255,0.7);
+  font-family: var(--mono);
+  letter-spacing: 0.08em;
+  z-index: 1;
+  pointer-events: none;
+}
+

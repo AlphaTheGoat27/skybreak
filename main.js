@@ -12,7 +12,7 @@ const CFG = {
   // Hybrid win condition
   BASE_ESCAPE_TIME: 120,
   TIME_REDUCTION_PER_AI_BOT: 5,
-  AI_BOTS_FOR_INSTANT_WIN: 15,
+  AI_BOTS_FOR_INSTANT_WIN: 10,
   MIN_ESCAPE_TIME: 60,
 
   // Player
@@ -24,7 +24,7 @@ const CFG = {
   // Shooting
   BULLET_SPEED: 145,
   BULLET_LIFETIME: 1.5,
-  SHOOT_COOLDOWN: 0.3,
+  SHOOT_COOLDOWN: 0.28,
   DISRUPTION_GAIN_PER_HIT: 0.09,
 
   // AI Bots (replicated glitch entities)
@@ -33,11 +33,18 @@ const CFG = {
   AI_BOT_SPAWN_INTERVAL: 6,
   AI_BOT_MIN_SPAWN_COUNT: 1,
   AI_BOT_MAX_SPAWN_COUNT: 3,
-  AI_BOT_SPAWN_DISTANCE: 320,
-  AI_BOT_WAVE_Z_SPACING: 25,
-  AI_BOT_OBSTACLE_CLEARANCE: 200,
-  AI_BOT_OBSTACLE_GRACE_PERIOD: 2.0,
+  AI_BOT_SPAWN_DISTANCE: 380,
+  AI_BOT_WAVE_Z_SPACING: 35,
+  AI_BOT_OBSTACLE_CLEARANCE: 240,
+  AI_BOT_OBSTACLE_GRACE_PERIOD: 3.5,
   AI_BOT_SPAWN_RETRY_DELAY: 0.5,
+  CORE_CHAPTER_WEIGHT: 6,
+
+  // Kinetic Drift throttle
+  BOOST_MULT: 1.55,
+  ANCHOR_MULT: 0.45,
+  BOOST_HEAT_RATE: 0.18,
+  BOOST_COOL_RATE: 0.12,
 
   // Storage
   KEY_NAME: "skybreak_name",
@@ -125,12 +132,18 @@ app.innerHTML = `
   <div id="hud-best" class="hud-best">PB --</div>
 
   <div id="hud-objective" class="hud-objective">OBJECTIVE: SURVIVE THE BREACH</div>
-  <div id="hud-progress" class="hud-progress">AI BOTS 0/15 | PORTAL UNLOCKS AT 120s</div>
+  <div id="hud-progress" class="hud-progress">AI BOTS 0/10 | PORTAL UNLOCKS AT 120s</div>
   <div id="portal-arrow" class="portal-arrow">PORTAL AHEAD 0m</div>
 
   <div class="hud-bar-group">
     <div class="hud-bar-label" id="disruption-label">SIGNAL BREAK</div>
     <div class="hud-bar disruption-bar"><div id="disruption-fill" class="hud-bar-fill disruption-fill"></div></div>
+    
+    <div class="hud-bar-label" id="boost-heat-label" style="display:none">HEAT</div>
+    <div class="hud-bar boost-heat-bar" id="boost-heat-bar" style="display:none">
+      <div id="boost-heat-fill" class="hud-bar-fill boost-heat-fill"></div>
+    </div>
+
     <div class="hud-bar-label integrity-label">HULL</div>
     <div class="hud-bar integrity-bar"><div id="integrity-fill" class="hud-bar-fill integrity-fill"></div></div>
   </div>
@@ -143,17 +156,44 @@ app.innerHTML = `
   </div>
 </div>
 
+<!-- Controls HUD — permanent side panels -->
+<div id="controls-hud-left" class="controls-hud controls-hud--left">
+  <div class="ctrl-group">
+    <div class="ctrl-title">MOVE</div>
+    <div class="ctrl-key-grid">
+      <div class="ctrl-row"><div class="ctrl-key">W</div></div>
+      <div class="ctrl-row">
+        <div class="ctrl-key">A</div><div class="ctrl-key">S</div><div class="ctrl-key">D</div>
+      </div>
+    </div>
+    <div class="ctrl-alt">or ARROWS</div>
+  </div>
+</div>
+
+<div id="controls-hud-right" class="controls-hud controls-hud--right">
+  <div class="ctrl-group">
+    <div class="ctrl-title">SHOOT</div>
+    <div class="ctrl-key ctrl-key--wide">SPACE</div>
+    <div class="ctrl-alt">or MOUSE</div>
+  </div>
+  <div class="ctrl-group" style="margin-top:0.8rem">
+    <div class="ctrl-title">THROTTLE</div>
+    <div class="ctrl-throttle-row">
+      <div class="ctrl-key ctrl-key--boost">SHIFT BOOST</div>
+    </div>
+    <div class="ctrl-throttle-row" style="margin-top:2px">
+      <div class="ctrl-key ctrl-key--brake">C BRAKE</div>
+    </div>
+  </div>
+</div>
+
 <!-- Overlays -->
 <div id="white-flash" class="white-flash"></div>
 <div id="damage-flash" class="damage-flash"></div>
 <div id="crash-overlay" class="crash-overlay"><div id="crash-text" class="crash-text">TRAJECTORY INVALID</div></div>
 <div id="chapter-banner" class="chapter-banner"></div>
 <div id="invert-overlay" class="invert-overlay">CONTROLS INVERTED</div>
-<div id="mobile-tutorial" class="mobile-tutorial">
-  <div class="mobile-tutorial__title">LEFT HALF = MOVE</div>
-  <div class="mobile-tutorial__title">RIGHT HALF = SHOOT</div>
-  <div class="mobile-tutorial__diagram">LEFT | RIGHT</div>
-</div>
+<div id="mobile-tutorial" class="mobile-tutorial"></div>
 
 <!-- Death screen -->
 <div id="death-screen" class="death-screen">
@@ -168,7 +208,7 @@ app.innerHTML = `
     <div id="death-ai-line" class="death-ai-line"></div>
     <div class="death-buttons">
       <button id="death-retry" class="death-btn death-btn--retry">TRY AGAIN</button>
-      <button id="death-quit" class="death-btn death-btn--quit">QUIT TO VIBE JAM</button>
+      <button id="death-quit" class="death-btn death-btn--quit">QUIT TO JAM</button>
     </div>
   </div>
 </div>
@@ -182,29 +222,128 @@ app.innerHTML = `
   <h1 class="game-title">SKYBREAK</h1>
   <p class="game-subtitle">AI REALITY COLLAPSE</p>
   <div id="intro-label" class="intro-label"></div>
-  <div id="intro-hint" class="intro-hint">
+
+  <!-- Step 1: Mode select -->
+  <div id="mode-select" class="mode-select">
+    <button id="btn-solo" class="mode-btn mode-btn--solo">
+      <div class="mode-btn-icon">▶</div>
+      <div class="mode-btn-title">SOLO</div>
+      <div class="mode-btn-desc">Face the AI alone · 120s</div>
+    </button>
+    <button id="btn-multi" class="mode-btn mode-btn--multi">
+      <div class="mode-btn-icon">⚔</div>
+      <div class="mode-btn-title">MULTIPLAYER</div>
+      <div class="mode-btn-desc">PvP · room codes · kinetic drift</div>
+    </button>
+  </div>
+
+  <!-- Step 2A: Solo form -->
+  <div id="intro-hint" class="intro-hint" style="display:none">
     <div class="intro-title">SYSTEM BREACH</div>
-    <div class="intro-narrative">THE AI BUILT THIS WORLD. IT IS COLLAPSING.</div>
-    <div class="intro-narrative">THE AI HAS SELF-REPLICATED — MORE BOTS, HIGHER THREAT.</div>
-    <div class="intro-narrative">SHOOT THE GLOWING AI BOTS TO BREAK THE LOCK EARLY.</div>
-    <div class="intro-narrative accent">REACH THE PORTAL BEFORE THE VOID TAKES YOU.</div>
-    <div class="intro-key">
-      <span>MOUSE MOVE = AIM</span>
-      <span>SPACE / CLICK = SHOOT</span>
-      <span>WASD = MOVE SHIP</span>
-      <span>PINK AI BOT = SHOOT IT</span>
-      <span>PORTAL RING = FLY THROUGH IT</span>
+    <div class="intro-narrative">SHOOT THE AI BOTS. REACH THE PORTAL.</div>
+    <div class="intro-narrative accent">THE AI WILL TRY TO STOP YOU.</div>
+    <div class="intro-key" id="intro-key-row">
+      <span>WASD = MOVE</span>
+      <span>MOUSE = AIM</span>
+      <span>SPACE = SHOOT</span>
+      <span>SHIFT = BOOST</span>
+      <span>C = BRAKE</span>
     </div>
   </div>
-  <form id="intro-form" class="intro-form">
-    <input id="intro-input" class="intro-input" type="text" placeholder="enter pilot name... or leave blank" maxlength="16" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false">
+  <form id="intro-form" class="intro-form" style="display:none">
+    <input id="intro-input" class="intro-input" type="text"
+      placeholder="enter pilot name... or leave blank" maxlength="16"
+      autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false">
     <button type="submit" class="intro-button">ENTER THE VOID</button>
   </form>
+
+  <!-- Step 2B: Multiplayer setup -->
+  <div id="mp-setup" class="mp-setup" style="display:none">
+    <input id="mp-name" class="intro-input" type="text"
+      placeholder="pilot name (optional)" maxlength="16"
+      autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false">
+    <div class="mp-controls-hint">
+      <span class="mp-ctrl-tag mp-ctrl-boost">⇧ SHIFT = BOOST</span>
+      <span class="mp-ctrl-tag mp-ctrl-brake">C = BRAKE</span>
+      <span class="mp-ctrl-sub">master the throttle · feather speed in dogfights</span>
+    </div>
+    <div class="room-section">
+      <div class="room-row">
+        <input id="room-code-input" class="room-code-input" type="text"
+          placeholder="ENTER CODE" maxlength="6"
+          autocomplete="off" autocapitalize="characters" spellcheck="false">
+        <span class="room-or">OR</span>
+        <button id="btn-create-room" class="room-create-btn">CREATE ROOM</button>
+      </div>
+      <div id="room-display" class="room-display" style="display:none">
+        ROOM: <strong id="room-code-text" class="room-code-big"></strong>
+        <span id="room-copy-hint" class="room-copy-hint"> · click to copy</span>
+      </div>
+    </div>
+    <button id="btn-mp-join" class="intro-button" style="display:none">JOIN LOBBY</button>
+  </div>
+
+  <!-- Step 3: Lobby -->
+  <div id="mp-lobby" class="mp-lobby" style="display:none">
+    <div class="lobby-title">WAITING FOR PILOTS</div>
+    <div id="lobby-room-display" class="room-display" style="display:block; margin-bottom:0.5rem">
+      ROOM CODE: <strong id="lobby-room-code" class="room-code-big"></strong>
+      <span id="lobby-copy-hint" class="room-copy-hint"> · click to copy</span>
+    </div>
+    <div id="lobby-share-link" class="lobby-share-link"></div>
+    <div id="lobby-countdown" class="lobby-countdown">—</div>
+    <div id="lobby-players" class="lobby-players"></div>
+    <div class="lobby-hint">Share the code · starts in 20s with 2+ pilots · SHIFT=BOOST · C=BRAKE</div>
+    <button id="btn-lobby-cancel" class="death-btn death-btn--quit" style="margin-top:0.5rem">LEAVE</button>
+  </div>
+
   <p class="creator-credit">made by ai, prompted by <a href="https://x.com/AlphaGoat2711" target="_blank">@AlphaGoat2711</a> · vibe jam 2026</p>
   <p class="github-link"><a href="https://github.com/AlphaTheGoat27/skybreak" target="_blank">open source on github</a></p>
 </div>
 
-<div id="shoot-hint" class="shoot-hint"></div>
+<!-- MP overlays (outside intro-screen) -->
+<div id="mp-leaderboard" class="mp-leaderboard">
+  <div class="mp-lb-title">LIVE SESSION</div>
+  <div id="mp-lb-list" class="mp-lb-list"></div>
+  <div id="mp-session-timer" class="mp-session-timer">3:00</div>
+</div>
+<div id="kill-feed" class="kill-feed"></div>
+<div id="respawn-overlay" class="respawn-overlay">
+  <div class="respawn-text">RESPAWNING...</div>
+</div>
+<div id="mp-end-screen" class="mp-end-screen">
+  <div class="mp-end-content">
+    <div class="mp-end-title">SESSION OVER</div>
+    <div id="mp-end-rank" class="mp-end-rank"></div>
+    <div id="mp-end-list" class="mp-lb-list mp-end-list"></div>
+    <div class="mp-end-buttons">
+      <button id="mp-end-retry" class="death-btn death-btn--retry">PLAY AGAIN</button>
+      <button id="mp-end-quit"  class="death-btn death-btn--quit">QUIT TO JAM</button>
+    </div>
+  </div>
+</div>
+
+<!-- Mobile virtual joystick -->
+<div id="vj-zone" style="position:fixed;left:0;bottom:0;width:45vw;height:45vh;z-index:12;display:none;touch-action:none;">
+  <div id="vj-base" style="position:absolute;width:110px;height:110px;border:2px solid rgba(0,255,255,0.3);border-radius:50%;background:rgba(0,20,30,0.5);left:50%;top:50%;transform:translate(-50%,-50%);">
+    <div id="vj-thumb" style="position:absolute;width:44px;height:44px;border-radius:50%;background:rgba(0,255,255,0.55);top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none;"></div>
+  </div>
+</div>
+<div id="shoot-zone" style="position:fixed;right:0;bottom:0;width:45vw;height:45vh;z-index:12;display:none;touch-action:none;align-items:center;justify-content:center;">
+  <div style="width:80px;height:80px;border:2px solid rgba(255,200,0,0.5);border-radius:50%;background:rgba(255,180,0,0.06);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:9px;letter-spacing:0.2em;color:rgba(255,200,0,0.6);">SHOOT</div>
+</div>
+<div id="mobile-throttle-bar" style="position:fixed;bottom:calc(45vh + 0.6rem);left:50%;transform:translateX(-50%);display:none;gap:0.6rem;z-index:13;align-items:center;">
+  <button id="mobile-brake-btn" class="mobile-throttle-btn mobile-throttle-btn--brake">
+    <span>⚓</span><span class="mobile-throttle-label">BRAKE</span>
+  </button>
+  <div id="mobile-heat-bar" class="mobile-heat-bar">
+    <div id="mobile-heat-fill" class="mobile-heat-fill"></div>
+    <span id="mobile-speed-text" class="mobile-speed-text">—</span>
+  </div>
+  <button id="mobile-boost-btn" class="mobile-throttle-btn mobile-throttle-btn--boost">
+    <span>⚡</span><span class="mobile-throttle-label">BOOST</span>
+  </button>
+</div>
 `;
 
 // DOM refs
@@ -247,7 +386,97 @@ const G = {
   introInput: document.getElementById("intro-input"),
   bestDisplay: document.getElementById("best-display-text"),
   shootHint: document.getElementById("shoot-hint"),
+  modeSelect:     document.getElementById('mode-select'),
+  btnSolo:        document.getElementById('btn-solo'),
+  btnMulti:       document.getElementById('btn-multi'),
+  introHint:      document.getElementById('intro-hint'),
+  introKeyRow:    document.getElementById('intro-key-row'),
+  mpSetup:        document.getElementById('mp-setup'),
+  mpName:         document.getElementById('mp-name'),
+  roomCodeInput:  document.getElementById('room-code-input'),
+  btnCreate:      document.getElementById('btn-create-room'),
+  roomDisplay:    document.getElementById('room-display'),
+  roomCodeText:   document.getElementById('room-code-text'),
+  roomCopyHint:   document.getElementById('room-copy-hint'),
+  btnMpJoin:      document.getElementById('btn-mp-join'),
+  mpLobby:        document.getElementById('mp-lobby'),
+  lobbyRoomCode:  document.getElementById('lobby-room-code'),
+  lobbyCopyHint:  document.getElementById('lobby-copy-hint'),
+  lobbyCountdown: document.getElementById('lobby-countdown'),
+  lobbyPlayers:   document.getElementById('lobby-players'),
+  btnLobbyCancel: document.getElementById('btn-lobby-cancel'),
+  mpLeaderboard:  document.getElementById('mp-leaderboard'),
+  respawnOverlay: document.getElementById('respawn-overlay'),
+  mpEndScreen:    document.getElementById('mp-end-screen'),
+  controlsHudLeft:  document.getElementById('controls-hud-left'),
+  controlsHudRight: document.getElementById('controls-hud-right'),
 };
+
+// ── Portal instant start ──────────────────────────────────────────
+(function immediatePortalCheck() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("portal") !== "true") return;
+  const introEl = document.getElementById("intro-screen");
+  if (introEl) { introEl.style.opacity = "0"; introEl.style.pointerEvents = "none"; }
+  const urlName = params.get("username");
+  if (urlName) {
+    const cleaned = urlName.replace(/[^a-zA-Z0-9_\-]/g, "").slice(0, 16).toLowerCase();
+    if (cleaned) { G.introInput.value = cleaned; localStorage.setItem(CFG.KEY_NAME, cleaned); }
+  }
+  requestAnimationFrame(() => requestAnimationFrame(() => startGame()));
+})();
+
+// ── Mobile controls ───────────────────────────────────────────────
+let _mobileBoostHeld = false;
+let _mobileBrakeHeld = false;
+
+(function setupMobileControls() {
+  if (!("ontouchstart" in window)) return;
+  const vjZone = document.getElementById("vj-zone");
+  const vjBase = document.getElementById("vj-base");
+  const vjThumb = document.getElementById("vj-thumb");
+  const shootZone = document.getElementById("shoot-zone");
+  const throttleBar = document.getElementById("mobile-throttle-bar");
+  const boostBtn = document.getElementById("mobile-boost-btn");
+  const brakeBtn = document.getElementById("mobile-brake-btn");
+  if (!vjZone || !vjBase || !vjThumb || !shootZone) return;
+  vjZone.style.display = "block";
+  shootZone.style.display = "flex";
+  if (throttleBar) throttleBar.style.display = "flex";
+
+  const R = 48;
+  let joyX = 0;
+  let joyY = 0;
+  const updateJoy = (touch) => {
+    const rect = vjBase.getBoundingClientRect();
+    let dx = touch.clientX - (rect.left + rect.width / 2);
+    let dy = touch.clientY - (rect.top + rect.height / 2);
+    const d = Math.hypot(dx, dy);
+    if (d > R) { dx = (dx / d) * R; dy = (dy / d) * R; }
+    joyX = dx / R;
+    joyY = -(dy / R);
+    vjThumb.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+  };
+
+  vjZone.addEventListener("touchstart", e => { e.preventDefault(); updateJoy(e.touches[0]); }, { passive: false });
+  vjZone.addEventListener("touchmove", e => { e.preventDefault(); updateJoy(e.touches[0]); }, { passive: false });
+  vjZone.addEventListener("touchend", e => {
+    e.preventDefault();
+    joyX = 0; joyY = 0;
+    vjThumb.style.transform = "translate(-50%, -50%)";
+  }, { passive: false });
+  shootZone.addEventListener("touchstart", e => { e.preventDefault(); window._mobileShootHeld = true; }, { passive: false });
+  shootZone.addEventListener("touchend", e => { e.preventDefault(); window._mobileShootHeld = false; }, { passive: false });
+  if (boostBtn) {
+    boostBtn.addEventListener("touchstart", e => { e.preventDefault(); _mobileBoostHeld = true; }, { passive: false });
+    boostBtn.addEventListener("touchend", e => { e.preventDefault(); _mobileBoostHeld = false; }, { passive: false });
+  }
+  if (brakeBtn) {
+    brakeBtn.addEventListener("touchstart", e => { e.preventDefault(); _mobileBrakeHeld = true; }, { passive: false });
+    brakeBtn.addEventListener("touchend", e => { e.preventDefault(); _mobileBrakeHeld = false; }, { passive: false });
+  }
+  window._mobileJoy = { getX: () => joyX, getY: () => joyY };
+})();
 
 // ═══════════════════════════════════════════════════════════════════
 // GLOBAL STATE
@@ -261,6 +490,19 @@ let chapterBannerTimer = 0;
 let invertOverlayTimer = 0;
 let tutorialWaveTimer = 0;
 
+// ── Multiplayer state ─────────────────────────────────────────────
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:3001";
+let socket = null;
+let mpMode = false;
+let myRoomCode = null;
+let otherPlayers = new Map();
+let posInterval = null;
+let mpRoomState = { players: [] };
+let mpSessionEndMs = 0;
+let lbTickInterval = null;
+let mpIsHost = false;
+let myMpColor = "#00ccff";
+
 // Saved name
 const savedName = localStorage.getItem(CFG.KEY_NAME) || "";
 G.introInput.value = savedName;
@@ -272,7 +514,7 @@ if (storedBest > 0 && G.bestDisplay) G.bestDisplay.textContent = `PB: ${storedBe
 GLOBAL_STATS.bestRun = Math.max(GLOBAL_STATS.bestRun, storedBest);
 
 // Typewriter intro
-const INTRO_TEXT = "[SYSTEM_AI] > identify yourself. or don't. i'll find out anyway.";
+const INTRO_TEXT = "SYSTEM BREACH DETECTED // SELECT MODE";
 let typeIdx = 0;
 const typeTimer = setInterval(() => {
   G.introLabel.classList.add("is-typing");
@@ -399,8 +641,26 @@ function startGame() {
     }
     aiTroll.setPilot(PLAYER_NAME);
 
-    threeApp.beginRun({ fromPortal, referrer });
+    threeApp.beginRun({ fromPortal, referrer, multiplayer: mpMode });
     G.hud.classList.add("is-active");
+    const ctrlLeft = G.controlsHudLeft;
+    const ctrlRight = G.controlsHudRight;
+    const isMobileDevice = "ontouchstart" in window || window.innerWidth < 768;
+    if (ctrlLeft) {
+      ctrlLeft.style.display = "flex";
+      if (isMobileDevice) ctrlLeft.classList.add("is-mobile");
+      requestAnimationFrame(() => ctrlLeft.classList.add("is-visible"));
+    }
+    if (ctrlRight) {
+      ctrlRight.style.display = "flex";
+      if (isMobileDevice) ctrlRight.classList.add("is-mobile");
+      requestAnimationFrame(() => ctrlRight.classList.add("is-visible"));
+    }
+    const isTouch = "ontouchstart" in window;
+    const isNarrow = window.innerWidth < 768;
+    G.flightTip.textContent = (isTouch || isNarrow)
+      ? "LEFT = MOVE · RIGHT = SHOOT · ⚡ BOOST · ⚓ BRAKE · DESTROY AI BOTS"
+      : "WASD · MOUSE AIM · SPACE = SHOOT · SHIFT = BOOST · C = BRAKE · DESTROY AI BOTS";
 
     if ("ontouchstart" in window) {
       G.shootHint.classList.add("is-visible");
@@ -411,6 +671,18 @@ function startGame() {
     G.introScreen.classList.add("is-fading");
     setTimeout(() => G.introScreen.classList.add("is-gone"), 500);
     setTimeout(() => aiTroll.pushFirstLine(true), 700);
+    if (fromPortal) {
+      setTimeout(() => {
+        const arrivals = [
+          "you fell in from somewhere else. still going to crash.",
+          "portal arrival. interesting. survive.",
+          "you brought your chaos with you. welcome.",
+        ];
+        aiTroll?.announce(arrivals[Math.floor(Math.random() * arrivals.length)], {
+          priority: 4, interrupt: true, ttlMs: 3000, dedupeKey: "portal-arrival",
+        });
+      }, 800);
+    }
   } catch (e) {
     G.introLabel.textContent = `[ERROR] ${e instanceof Error ? e.message : e}`;
     console.error(e);
@@ -418,7 +690,322 @@ function startGame() {
   }
 }
 
+if (G.btnSolo) {
+  G.btnSolo.addEventListener("click", () => {
+    G.modeSelect.style.display = "none";
+    G.introHint.style.display = "flex";
+    G.introForm.style.display = "flex";
+    if (G.btnSoloBack) G.btnSoloBack.style.display = "block";
+    G.mpSetup.style.display = "none";
+    const touch = "ontouchstart" in window || window.innerWidth < 768;
+    if (G.introKeyRow) {
+      G.introKeyRow.innerHTML = touch
+        ? "<span>LEFT = MOVE</span><span>RIGHT = SHOOT</span><span>⚡ BOOST BTN</span><span>⚓ BRAKE BTN</span>"
+        : "<span>WASD = MOVE</span><span>MOUSE = AIM</span><span>SPACE = SHOOT</span><span>SHIFT = BOOST</span><span>C = BRAKE</span>";
+    }
+    setTimeout(() => G.introInput?.focus(), 50);
+  });
+}
+if (G.btnSoloBack) {
+  G.btnSoloBack.addEventListener("click", () => {
+    G.introHint.style.display = "none";
+    G.introForm.style.display = "none";
+    G.btnSoloBack.style.display = "none";
+    G.modeSelect.style.display = "flex";
+  });
+}
+if (G.btnMulti) {
+  G.btnMulti.addEventListener("click", () => {
+    G.modeSelect.style.display = "none";
+    G.introHint.style.display = "flex";
+    G.introForm.style.display = "none";
+    if (G.btnSoloBack) G.btnSoloBack.style.display = "none";
+    G.mpSetup.style.display = "flex";
+    const hintLines = G.introHint?.querySelectorAll(".intro-narrative");
+    if (hintLines && hintLines.length >= 4) {
+      hintLines[0].textContent = "MULTIPLAYER BREACH PROTOCOL";
+      hintLines[1].textContent = "CREATE ROOM, JOIN WITH CODE, OR QUICK JOIN.";
+      hintLines[2].textContent = "QUICK JOIN STARTS AFTER 20S WITH 2+ PILOTS.";
+      hintLines[3].textContent = "SURVIVE THE SESSION. OUT-FLY THE ROOM.";
+    }
+    if (G.introKeyRow) {
+      G.introKeyRow.innerHTML = "<span>WASD = MOVE</span><span>MOUSE = AIM</span><span>SPACE = SHOOT</span><span>SHIFT = BOOST</span><span>C = BRAKE</span>";
+    }
+    setTimeout(() => G.mpName?.focus(), 50);
+    initSocket();
+  });
+}
+if (G.btnCreate) {
+  G.btnCreate.addEventListener("click", () => {
+    if (!socket?.connected) { G.btnCreate.textContent = "CONNECTING..."; return; }
+    const preferredCode = (window.prompt("Create Room: enter a room code (1-6 letters/numbers)") || "")
+      .trim()
+      .toUpperCase();
+    if (!/^[A-Z0-9]{1,6}$/.test(preferredCode)) {
+      alert("Room code must be 1-6 letters/numbers.");
+      return;
+    }
+    socket.emit("create_room", { name: G.mpName?.value.trim(), color: pickMpColor(), code: preferredCode || undefined });
+  });
+}
+if (G.btnJoinCustom) {
+  G.btnJoinCustom.addEventListener("click", () => {
+    const code = (window.prompt("Join Room: enter room code") || "").trim().toUpperCase();
+    if (!/^[A-Z0-9]{1,6}$/.test(code) || !socket) {
+      alert("Enter a valid room code (1-6 letters/numbers).");
+      return;
+    }
+    socket.emit("join_room", { code, name: G.mpName?.value.trim(), color: pickMpColor() });
+  });
+}
+if (G.btnJoinPublic) {
+  G.btnJoinPublic.addEventListener("click", () => {
+    if (!socket?.connected) { G.btnJoinPublic.textContent = "CONNECTING..."; return; }
+    socket.emit("join_public", { name: G.mpName?.value.trim(), color: pickMpColor() });
+  });
+}
+if (G.btnMpBack) {
+  G.btnMpBack.addEventListener("click", () => {
+    G.mpSetup.style.display = "none";
+    G.introHint.style.display = "none";
+    G.introForm.style.display = "none";
+    G.modeSelect.style.display = "flex";
+  });
+}
+if (G.btnStartCustom) {
+  G.btnStartCustom.addEventListener("click", () => {
+    if (!socket?.connected || !myRoomCode || !mpIsHost) return;
+    socket.emit("start_room", { code: myRoomCode });
+  });
+}
+if (G.btnLobbyCancel) {
+  G.btnLobbyCancel.addEventListener("click", () => {
+    socket?.disconnect();
+    socket = null;
+    clearInterval(lbTickInterval);
+    lbTickInterval = null;
+    mpMode = false;
+    G.mpLobby.style.display = "none";
+    G.mpSetup.style.display = "none";
+    G.introHint.style.display = "none";
+    G.introForm.style.display = "none";
+    if (G.mpLeaderboard) G.mpLeaderboard.style.display = "none";
+    if (G.killFeed) G.killFeed.style.display = "none";
+    if (G.respawnOverlay) G.respawnOverlay.style.display = "none";
+    G.modeSelect.style.display = "flex";
+    myRoomCode = null;
+  });
+}
+if (G.roomCopyHint) {
+  G.roomCopyHint.addEventListener("click", () => navigator.clipboard?.writeText(G.roomCodeText?.textContent || ""));
+}
+if (G.lobbyCopyHint) {
+  G.lobbyCopyHint.addEventListener("click", () => navigator.clipboard?.writeText(G.lobbyRoomCode?.textContent || ""));
+}
+const _urlRoom = new URLSearchParams(location.search).get("room");
+if (_urlRoom && G.btnMulti) {
+  setTimeout(() => {
+    G.btnMulti.click();
+    if (G.roomCodeInput) {
+      G.roomCodeInput.value = _urlRoom.toUpperCase();
+    }
+  }, 500);
+}
 G.introForm.addEventListener("submit", e => { e.preventDefault(); startGame(); });
+
+function pickMpColor() {
+  const c = ["#00ffff", "#ff00ff", "#ffff00", "#00ff88", "#ff6600", "#88aaff", "#ff4488", "#44ffbb"];
+  return c[Math.floor(Math.random() * c.length)];
+}
+
+function mpProgressOf(player) {
+  if (!player) return 0;
+  const z = Number.isFinite(player.z) ? player.z : 0;
+  return -z;
+}
+
+function updateMpLeaderboard() {
+  if (!mpMode || !G.mpLeaderboard || !G.mpLbList) return;
+  const players = [...(mpRoomState.players || [])].sort((a, b) =>
+    (mpProgressOf(b) - mpProgressOf(a)) || ((b.kills || 0) - (a.kills || 0))
+  );
+  const myId = socket?.id;
+  G.mpLbList.innerHTML = players.map((p, idx) => {
+    const me = p.id === myId ? " (YOU)" : "";
+    const crown = idx === 0 ? " [FRONT]" : "";
+    const ko = p.alive ? "" : " [DOWN]";
+    return `<div class="mp-lb-row${p.id === myId ? " is-me" : ""}">
+      <span class="mp-lb-rank">#${idx + 1}</span>
+      <span class="mp-lb-name" style="color:${p.color}">${p.name}${me}</span>
+      <span class="mp-lb-stat">P:${Math.max(0, Math.floor(mpProgressOf(p)))} K:${p.kills || 0}${crown}${ko}</span>
+    </div>`;
+  }).join("");
+}
+
+function pushKillFeed(text, color = "#ffffff") {
+  if (!G.killFeed) return;
+  const line = document.createElement("div");
+  line.className = "kill-feed-line";
+  line.textContent = text;
+  line.style.color = color;
+  G.killFeed.prepend(line);
+  while (G.killFeed.children.length > 6) G.killFeed.removeChild(G.killFeed.lastChild);
+  setTimeout(() => line.remove(), 3200);
+}
+
+function initSocket() {
+  if (socket?.connected || typeof window.io !== "function") return;
+  socket = window.io(SOCKET_URL, { transports: ["websocket"] });
+  socket.on("connect", () => { if (G.btnCreate) G.btnCreate.textContent = "CREATE ROOM"; });
+  socket.on("connect_error", () => { if (G.btnCreate) G.btnCreate.textContent = "CONNECTING... (waking)"; });
+  socket.on("room_created", ({ code }) => {
+    myRoomCode = code;
+    mpIsHost = true;
+    if (G.roomDisplay) G.roomDisplay.style.display = "block";
+    if (G.roomCodeText) G.roomCodeText.textContent = code;
+    if (G.roomCodeInput) G.roomCodeInput.value = code;
+    socket.emit("join_room", { code, name: G.mpName?.value.trim(), color: pickMpColor() });
+  });
+  socket.on("public_joined", ({ code }) => {
+    myRoomCode = code;
+    if (G.roomDisplay) G.roomDisplay.style.display = "block";
+    if (G.roomCodeText) G.roomCodeText.textContent = code;
+    if (G.roomCodeInput) G.roomCodeInput.value = code;
+  });
+  socket.on("room_joined", ({ code }) => {
+    myRoomCode = code;
+    mpIsHost = false;
+    if (G.mpSetup) G.mpSetup.style.display = "none";
+    if (G.mpLobby) G.mpLobby.style.display = "flex";
+    if (G.lobbyRoomCode) G.lobbyRoomCode.textContent = code;
+  });
+  socket.on("room_role", ({ isHost }) => {
+    mpIsHost = !!isHost;
+    if (G.btnStartCustom) G.btnStartCustom.style.display = mpIsHost ? "block" : "none";
+  });
+  socket.on("join_error", (msg) => {
+    alert(`Could not join: ${msg}`);
+  });
+  socket.on("room_state", (state) => {
+    mpRoomState = state;
+    const me = (state.players || []).find(p => p.id === socket.id);
+    if (me?.color) {
+      myMpColor = me.color;
+      threeApp?.setLocalShipColor(me.color);
+    }
+    const count = (state.players || []).length;
+    if (G.lobbyStatus) {
+      if (state.isPublic) {
+        G.lobbyStatus.textContent = `PUBLIC LOBBY · ${count} PILOT${count === 1 ? "" : "S"} · STARTS WITH COUNTDOWN`;
+      } else {
+        G.lobbyStatus.textContent = mpIsHost
+          ? `CUSTOM LOBBY · ${count} PILOT${count === 1 ? "" : "S"} · PRESS START WHEN READY`
+          : `CUSTOM LOBBY · ${count} PILOT${count === 1 ? "" : "S"} · WAITING FOR LEADER TO START`;
+      }
+    }
+    if (G.btnStartCustom) {
+      G.btnStartCustom.style.display = (!state.isPublic && mpIsHost) ? "block" : "none";
+    }
+    if (G.lobbyPlayers) {
+      G.lobbyPlayers.innerHTML = (state.players || []).map(p =>
+        `<div class="lobby-player-row"><div class="lobby-player-dot" style="background:${p.color}"></div><div class="lobby-player-name">${p.name}</div></div>`
+      ).join("");
+    }
+    if (threeApp && socket?.id) {
+      for (const p of (state.players || [])) {
+        if (p.id === socket.id) continue;
+        threeApp.updateRemotePlayer(p);
+      }
+    }
+    updateMpLeaderboard();
+  });
+  socket.on("countdown_started", ({ startAt }) => {
+    const t = setInterval(() => {
+      const left = Math.max(0, Math.ceil((startAt - Date.now()) / 1000));
+      if (G.lobbyCountdown) G.lobbyCountdown.textContent = `${left}s`;
+      if (left <= 0) clearInterval(t);
+    }, 200);
+  });
+  socket.on("session_started", ({ sessionEnd }) => {
+    mpMode = true;
+    mpSessionEndMs = sessionEnd;
+    if (G.mpLeaderboard) G.mpLeaderboard.style.display = "none";
+    if (G.killFeed) G.killFeed.style.display = "none";
+    clearInterval(lbTickInterval);
+    lbTickInterval = setInterval(() => {
+      if (G.mpSessionTimer) {
+        const left = Math.max(0, Math.ceil((mpSessionEndMs - Date.now()) / 1000));
+        const m = Math.floor(left / 60);
+        const s = String(left % 60).padStart(2, "0");
+        G.mpSessionTimer.textContent = `${m}:${s}`;
+      }
+      updateMpLeaderboard();
+    }, 200);
+    startGame();
+  });
+  socket.on("player_state", (state) => {
+    if (!threeApp || !state?.id || state.id === socket.id) return;
+    threeApp.updateRemotePlayer(state);
+    const idx = (mpRoomState.players || []).findIndex(p => p.id === state.id);
+    if (idx >= 0) mpRoomState.players[idx] = { ...mpRoomState.players[idx], ...state };
+    else (mpRoomState.players || (mpRoomState.players = [])).push(state);
+    updateMpLeaderboard();
+  });
+  socket.on("player_left", ({ id }) => {
+    if (!threeApp || !id) return;
+    threeApp.removeRemotePlayer(id);
+    mpRoomState.players = (mpRoomState.players || []).filter(p => p.id !== id);
+    updateMpLeaderboard();
+  });
+  socket.on("player_eliminated", ({ killerId, killerName, victimId, victimName }) => {
+    const myId = socket?.id;
+    const isVictim = victimId === myId;
+    const isKiller = killerId === myId;
+    if (isVictim) {
+      if (health > 0) {
+        health = 0;
+        triggerCrash();
+      }
+      if (G.respawnOverlay) {
+        G.respawnOverlay.textContent = "ELIMINATED";
+        G.respawnOverlay.style.display = "grid";
+      }
+    }
+    const line = `${killerName} eliminated ${victimName}`;
+    pushKillFeed(line, isKiller ? "#ffff66" : isVictim ? "#ff6688" : "#ffffff");
+  });
+  socket.on("player_respawned", ({ name }) => {
+    pushKillFeed(`${name} respawned`, "#66ffcc");
+  });
+  socket.on("player_hit", ({ victimId, health, shooterId }) => {
+    const myId = socket?.id;
+    if (victimId === myId) {
+      applyDamage(10, "taking fire from another pilot.");
+      return;
+    }
+    const entry = otherPlayers.get(victimId);
+    if (!entry?.mesh) return;
+    // Brief red flash on the remote player's mesh to indicate damage
+    entry.mesh.traverse((child) => {
+      if (!child.isMesh || !child.material?.color) return;
+      const orig = child.material.color.clone();
+      child.material.color.set(0xff4444);
+      setTimeout(() => child.material.color.copy(orig), 120);
+    });
+  });
+  socket.on("core_spawn", (core) => {
+    if (!threeApp || !core?.id) return;
+    threeApp.spawnSharedCore(core);
+  });
+  socket.on("core_destroyed", ({ id }) => {
+    if (!threeApp || !id) return;
+    threeApp.destroySharedCore(id, true);
+  });
+  socket.on("session_ended", ({ standings = [] }) => {
+    mpRoomState.players = standings;
+    updateMpLeaderboard();
+  });
+}
 window.addEventListener("keydown", e => {
   if (e.key === "Enter" && !hasStarted && document.activeElement === G.introInput) {
     e.preventDefault(); startGame();
@@ -427,7 +1014,9 @@ window.addEventListener("keydown", e => {
 
 G.deathRetry.addEventListener("click", () => {
   G.deathScreen.classList.remove("is-visible");
-  if (threeApp) threeApp.beginRun({});
+  G.controlsHudLeft?.classList.add("is-visible");
+  G.controlsHudRight?.classList.add("is-visible");
+  if (threeApp) threeApp.beginRun({ multiplayer: mpMode });
   if (aiTroll) { aiTroll.reset(); aiTroll.pushFirstLine(); }
 });
 G.deathQuit.addEventListener("click", () => { window.location.href = CFG.WEBRING_URL; });
@@ -552,6 +1141,111 @@ function buildThreeApp(container) {
   _scene.add(shipAnchor);
   buildShip(shipAnchor);
 
+  function setLocalShipColor(color = "#00ccff") {
+    shipAnchor.traverse((child) => {
+      if (!child.isMesh || !child.material?.color) return;
+      child.material = child.material.clone();
+      child.material.color.lerp(new THREE.Color(color), 0.45);
+    });
+  }
+  setLocalShipColor(myMpColor);
+
+  function createRemotePlayerMesh(name = "pilot", color = "#00ffff") {
+    const group = new THREE.Group();
+
+    // Ship body — same as local player but tinted with player color
+    buildShip(group);
+    group.traverse((child) => {
+      if (!child.isMesh || !child.material?.color) return;
+      child.material = child.material.clone();
+      child.material.color.set(color);
+    });
+
+    // Bright dot marker — always renders on top, no fog, no depth test
+    const markerMat = new THREE.MeshBasicMaterial({ color, depthTest: false, fog: false });
+    const marker = new THREE.Mesh(new THREE.SphereGeometry(0.8, 8, 8), markerMat);
+    marker.renderOrder = 999;
+    group.add(marker);
+
+    // Ring around the ship — easy to spot
+    const ringMat = new THREE.MeshBasicMaterial({ color, depthTest: false, fog: false, transparent: true, opacity: 0.85 });
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(2.2, 0.15, 6, 20), ringMat);
+    ring.rotation.x = Math.PI / 2;
+    ring.renderOrder = 998;
+    group.add(ring);
+
+    // Name label
+    const labelSprite = makeTextSprite(name || "pilot", color);
+    labelSprite.position.set(0, 3, 0);
+    group.add(labelSprite);
+    return group;
+  }
+
+  function makeTextSprite(text, color = "#00ffff") {
+    const canvas = document.createElement("canvas");
+    canvas.width = 512;
+    canvas.height = 128;
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "rgba(0,0,0,0.6)";
+    ctx.fillRect(20, 16, 472, 96);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 3;
+    ctx.strokeRect(20, 16, 472, 96);
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "700 48px 'Share Tech Mono', monospace";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(String(text).slice(0, 16), canvas.width / 2, canvas.height / 2 + 3);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.needsUpdate = true;
+    const material = new THREE.SpriteMaterial({
+      map: texture,
+      transparent: true,
+      depthTest: false,
+      sizeAttenuation: false,
+    });
+    const sprite = new THREE.Sprite(material);
+    sprite.scale.set(6, 1.5, 1);
+    sprite.renderOrder = 1000;
+    return sprite;
+  }
+
+  function upsertRemotePlayer({ id, x, y, z, rotZ, name, color, alive = true }) {
+    if (!id || id === socket?.id) return;
+    let entry = otherPlayers.get(id);
+    if (!entry) {
+      const mesh = createRemotePlayerMesh(name, color);
+      _scene.add(mesh);
+      entry = {
+        mesh,
+        pos: new THREE.Vector3(x ?? 0, y ?? 0, z ?? 0),
+        rotZ: rotZ || 0,
+        alive: !!alive,
+        lastSeen: performance.now(),
+      };
+      const relZ = THREE.MathUtils.clamp((z ?? 0) - shipAnchor.position.z, -120, 120);
+      mesh.position.set(x ?? 0, y ?? 0, shipAnchor.position.z + relZ);
+      mesh.rotation.z = entry.rotZ;
+      mesh.visible = entry.alive;
+      otherPlayers.set(id, entry);
+      return;
+    }
+    entry.pos.set(x ?? 0, y ?? 0, z ?? 0);
+    entry.rotZ = rotZ || 0;
+    entry.alive = !!alive;
+    entry.lastSeen = performance.now();
+    entry.mesh.visible = entry.alive;
+  }
+
+  function removeRemotePlayer(id) {
+    const entry = otherPlayers.get(id);
+    if (!entry) return;
+    if (entry.mesh?.parent) entry.mesh.parent.remove(entry.mesh);
+    otherPlayers.delete(id);
+  }
+
   // Tunnel
   const CHUNK_LEN = 80, CHUNK_CNT = 8;
   const tunnelChunks = buildTunnel(_scene, CHUNK_CNT, CHUNK_LEN);
@@ -674,7 +1368,11 @@ function buildThreeApp(container) {
   let portalSafeZ = null;
   let harvestedWaves = new Set();
   let crashCount = 0, assistMode = false, assistEnd = 0;
+  let throttleMult = 1.0;
+  let boostHeat = 0;
+  let boostOverheat = false;
   let endSeqTimer = 0;
+  let mpStateSendAccum = 0;
 
   // Ghost deletion timings
   const ghostTimes = [18, 32, 48, 62];
@@ -704,6 +1402,12 @@ function buildThreeApp(container) {
     const spawnPos = shipAnchor.position.clone().add(new THREE.Vector3(0, 0, -2));
     const { target, dir } = getAimTarget(spawnPos);
     bullets.push(new Bullet(spawnPos, dir, target));
+    if (mpMode && socket?.connected) {
+      socket.emit("bullet_fired", {
+        x: spawnPos.x, y: spawnPos.y, z: spawnPos.z,
+        dx: dir.x, dy: dir.y, dz: dir.z, color: "#00ffff",
+      });
+    }
   }
 
   function getLockCandidate(from, baseDir, {
@@ -858,7 +1562,7 @@ function buildThreeApp(container) {
     return spr;
   }
 
-  function spawnCore(playerZ, parent = null, index = 0, waveId = -1, waveCount = CFG.AI_BOT_MAX_SPAWN_COUNT) {
+  function spawnCore(playerZ, parent = null, index = 0, waveId = -1, waveCount = CFG.AI_BOT_MAX_SPAWN_COUNT, shared = null) {
     if (cores.length >= CFG.MAX_AI_BOTS) return;
     const group = new THREE.Group();
 
@@ -905,7 +1609,9 @@ function buildThreeApp(container) {
       group.add(tutorialLabel);
     }
 
-    if (parent) {
+    if (shared) {
+      group.position.set(shared.x, shared.y, shared.z);
+    } else if (parent) {
       group.position.copy(parent.mesh.position);
       group.position.x += (Math.random() - 0.5) * 5;
       group.position.y += (Math.random() - 0.5) * 5;
@@ -923,16 +1629,34 @@ function buildThreeApp(container) {
       );
     }
 
+    // Prevent cores from spawning inside wall gaps (avoids unavoidable corridor traps)
+    for (const w of walls) {
+      if (!w.active) continue;
+      if (Math.abs(w.group.position.z - group.position.z) > 10) continue;
+      const centerX = (w.lft.position.x + w.rgt.position.x) / 2;
+      const halfGapX = (w.rgt.position.x - w.lft.position.x - 8) / 2;
+      const centerY = (w.bot.position.y + w.top.position.y) / 2;
+      const halfGapY = (w.top.position.y - w.bot.position.y - 10) / 2;
+      if (Math.abs(group.position.x - centerX) < halfGapX && Math.abs(group.position.y - centerY) < halfGapY) {
+        return null;
+      }
+    }
+
     group.scale.setScalar(scale);
+    const coreId = shared?.id || `${waveId}-${index}-${Math.floor(performance.now())}-${Math.floor(Math.random() * 1e6)}`;
+    const speedVal = shared?.speed ?? (() => {
+      const tFactor = THREE.MathUtils.clamp(wallTime / 60, 0, 1);
+      const base = THREE.MathUtils.lerp(5, 13, tFactor);
+      return base + Math.random() * THREE.MathUtils.lerp(2, 5, tFactor);
+    })();
+    const phaseVal = shared?.phase ?? (Math.random() * Math.PI * 2);
+    const rotSpdVal = shared?.rotSpd ?? (2 + Math.random() * 2);
     group.userData = {
       health: 1,
-      speed: (() => {
-        const baseSpeed = 9 + Math.random() * 5;
-        const timeBonus = Math.min(wallTime / 30, 1) * 8;
-        return baseSpeed + timeBonus;
-      })(),
-      phase: Math.random() * Math.PI * 2,
-      rotSpd: 2 + Math.random() * 2,
+      coreId,
+      speed: speedVal,
+      phase: phaseVal,
+      rotSpd: rotSpdVal,
       generation: gen,
       replicateT: 0,
       waveId: waveId,
@@ -940,12 +1664,39 @@ function buildThreeApp(container) {
       core, ring, reticle, tutorialLabel
     };
     _scene.add(group);
-    cores.push({ mesh: group, active: true });
+    const entry = { mesh: group, active: true };
+    cores.push(entry);
+    return entry;
+  }
+
+  function destroyCoreById(coreId, countTowardProgress = true) {
+    const idx = cores.findIndex(c => c.active && c.mesh?.userData?.coreId === coreId);
+    if (idx < 0) return false;
+    const victim = cores[idx];
+    flashWhite(0.06, 55);
+    spawnParticles(victim.mesh.position.clone(), 0x00ffff);
+    _scene.remove(victim.mesh);
+    cores.splice(idx, 1);
+    if (countTowardProgress && coresDestroyed < CFG.AI_BOTS_FOR_INSTANT_WIN) {
+      coresDestroyed++;
+      if (aiTroll) aiTroll._coreAccelSeconds = (aiTroll._coreAccelSeconds || 0) + CFG.CORE_CHAPTER_WEIGHT;
+      escapeTimeNeeded = Math.max(CFG.MIN_ESCAPE_TIME, CFG.BASE_ESCAPE_TIME - coresDestroyed * CFG.TIME_REDUCTION_PER_AI_BOT);
+      disruptMeter = THREE.MathUtils.clamp(coresDestroyed / CFG.AI_BOTS_FOR_INSTANT_WIN, 0, 1);
+      aiTroll?.onCoreDestroyed(coresDestroyed, CFG.AI_BOTS_FOR_INSTANT_WIN);
+      updateHUD(coresDestroyed, escapeTimeNeeded);
+      if (coresDestroyed >= CFG.AI_BOTS_FOR_INSTANT_WIN) unlockPortal(coresDestroyed);
+    }
+    return true;
+  }
+
+  function spawnSharedCore(core) {
+    if (!core?.id) return;
+    const exists = cores.some(c => c.active && c.mesh?.userData?.coreId === core.id);
+    if (exists) return;
+    spawnCore(core.z || 0, null, core.index || 0, core.waveId || -1, core.waveCount || 1, core);
   }
 
   function updateCores(dt, playerZ) {
-    const cdRef = { val: coresDestroyed };
-
     for (let i = cores.length - 1; i >= 0; i--) {
       const c = cores[i];
       if (!c.active) continue;
@@ -1009,7 +1760,6 @@ function buildThreeApp(container) {
       // Find the closest core to this bullet
       let closestCore = null;
       let closestDist = Infinity;
-      let closestIdx = -1;
 
       for (let i = cores.length - 1; i >= 0; i--) {
         const c = cores[i];
@@ -1020,7 +1770,6 @@ function buildThreeApp(container) {
         if (dist < 7 && dist < closestDist) {
           closestDist = dist;
           closestCore = c;
-          closestIdx = i;
         }
       }
 
@@ -1029,54 +1778,45 @@ function buildThreeApp(container) {
         bullet.destroy();
         bullets.splice(b, 1);
 
-        // All cores are individually destroyable - cap at win condition
-        if (cdRef.val < CFG.AI_BOTS_FOR_INSTANT_WIN) {
-          flashWhite(0.06, 55);
-          spawnParticles(closestCore.mesh.position.clone(), 0x00ffff);
-          _scene.remove(closestCore.mesh);
-          cores.splice(closestIdx, 1);
-          cdRef.val++;
-
-          // Update escape time (hybrid win condition)
-          escapeTimeNeeded = Math.max(CFG.MIN_ESCAPE_TIME, CFG.BASE_ESCAPE_TIME - cdRef.val * CFG.TIME_REDUCTION_PER_AI_BOT);
-          disruptMeter = THREE.MathUtils.clamp(cdRef.val / CFG.AI_BOTS_FOR_INSTANT_WIN, 0, 1);
-
-          aiTroll?.onCoreDestroyed(cdRef.val, CFG.AI_BOTS_FOR_INSTANT_WIN);
-          updateHUD(cdRef.val, escapeTimeNeeded);
-
-          if (cdRef.val >= CFG.AI_BOTS_FOR_INSTANT_WIN) unlockPortal(cdRef.val);
+        if (closestCore?.mesh?.userData?.coreId) {
+          const coreId = closestCore.mesh.userData.coreId;
+          const removed = destroyCoreById(coreId, true);
+          if (removed && mpMode && socket?.connected) {
+            socket.emit("core_destroyed", { id: coreId });
+          }
         }
       }
     }
 
-    coresDestroyed = cdRef.val;
   }
 
   function spawnParticles(pos, color) {
-    // Rainbow color palette for impacts
     const rainbowColors = [0xff0000, 0xff7f00, 0xffff00, 0x00ff00, 0x0000ff, 0x4b0082, 0x9400d3, 0xff1493, 0x00ffff, 0xffd700];
+    const batch = [];
     for (let i = 0; i < 14; i++) {
-      // Use rainbow colors if no specific color provided, otherwise use the passed color
-      const particleColor = color ? rainbowColors[Math.floor(Math.random() * rainbowColors.length)] : 0xffffff;
       const p = new THREE.Mesh(
         new THREE.BoxGeometry(0.22, 0.22, 0.22),
-        new THREE.MeshBasicMaterial({ color: particleColor, transparent: true, opacity: 0.95 })
+        new THREE.MeshBasicMaterial({ color: color ? rainbowColors[Math.floor(Math.random() * rainbowColors.length)] : 0xffffff, transparent: true, opacity: 0.95 })
       );
       p.position.copy(pos);
       _scene.add(p);
-      const vel = new THREE.Vector3((Math.random()-0.5)*9, (Math.random()-0.5)*9, (Math.random()-0.5)*9);
-      let life = 0;
-      const tick = () => {
-        life += 0.016;
-        if (life > 0.55) { if (p.parent) p.parent.remove(p); return; }
+      const vel = new THREE.Vector3((Math.random() - 0.5) * 9, (Math.random() - 0.5) * 9, (Math.random() - 0.5) * 9);
+      batch.push({ p, vel });
+    }
+    let life = 0;
+    const tick = () => {
+      life += 0.016;
+      const alive = life < 0.55;
+      for (const { p, vel } of batch) {
         p.position.addScaledVector(vel, 0.016);
         vel.multiplyScalar(0.96);
         p.material.opacity = Math.max(0, 0.95 - life * 1.7);
         p.scale.setScalar(Math.max(0, 1 - life * 1.7));
-        requestAnimationFrame(tick);
-      };
-      requestAnimationFrame(tick);
-    }
+        if (!alive && p.parent) p.parent.remove(p);
+      }
+      if (alive) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
   }
 
   // ── PLAYER DAMAGE ─────────────────────────────────────────────────
@@ -1172,7 +1912,9 @@ function buildThreeApp(container) {
     }
 
     // Speed
-    G.hudSpeed.textContent = `${Math.round(getSpeed(diffT))} m/s`;
+    const curSpeed = Math.round(getSpeed(diffT) * throttleMult);
+    G.hudSpeed.textContent = `${curSpeed} m/s`;
+    G.hudSpeed.style.color = boostOverheat ? "#ff3344" : throttleMult > 1 ? "#ffdd55" : throttleMult < 1 ? "#66ccff" : "rgba(255,255,255,0.9)";
 
     // Objective
     const remaining = Math.max(0, CFG.AI_BOTS_FOR_INSTANT_WIN - cores);
@@ -1211,6 +1953,16 @@ function buildThreeApp(container) {
     if (G.disruptionLabel) {
       const breakPct = Math.round(disruptMeter * 100);
       G.disruptionLabel.textContent = breakPct > 0 ? `SIGNAL BREAK ${breakPct}%` : "SIGNAL BREAK";
+    }
+    const heatBar = document.getElementById("boost-heat-bar");
+    const heatFill = document.getElementById("boost-heat-fill");
+    const heatLabel = document.getElementById("boost-heat-label");
+    if (heatBar && heatFill && heatLabel) {
+      const showHeat = boostHeat > 0.04 || boostOverheat;
+      heatBar.style.display = showHeat ? "block" : "none";
+      heatLabel.style.display = showHeat ? "block" : "none";
+      heatFill.style.width = `${Math.round(boostHeat * 100)}%`;
+      heatFill.dataset.state = boostOverheat ? "critical" : boostHeat > 0.7 ? "warning" : "normal";
     }
 
     // PB
@@ -1313,13 +2065,19 @@ function buildThreeApp(container) {
           speechSynthesis?.cancel();
           const p = new URLSearchParams({
             username: PLAYER_NAME || "anonymous",
-            speed: Math.round(getSpeed(diffT)).toString(),
-            ref: location.origin,
-            hp: "100",
+            speed: Math.round(getSpeed(diffT) * throttleMult).toString(),
+            ref: location.origin + location.pathname,
+            hp: Math.ceil(health).toString(),
             color: "#00ffff",
             won: "true",
           });
-          location.href = `${CFG.WEBRING_URL}?${p}`;
+          if (mpMode && socket?.connected) {
+            socket.emit("portal_escape", { survivalTime: wallTime });
+            if (posInterval) clearInterval(posInterval);
+            setTimeout(() => { location.href = `${CFG.WEBRING_URL}?${p}`; }, 300);
+          } else {
+            location.href = `${CFG.WEBRING_URL}?${p}`;
+          }
         }, 650);
       });
     }, 4200);
@@ -1341,7 +2099,11 @@ function buildThreeApp(container) {
     camera.fov = 75; camera.updateProjectionMatrix();
     bannerTimer = 0; bannerText = "";
     endSeqTimer = 0;
+    mpStateSendAccum = 0;
     afkT = 0; afkIdx = 0; afkCool = 0;
+    throttleMult = 1.0;
+    boostHeat = 0;
+    boostOverheat = false;
     lastContactAt = 0; lastCollMs = 0; lastNearMs = 0; nearStreak = 0;
 
     assistMode = false; assistEnd = 0;
@@ -1352,8 +2114,10 @@ function buildThreeApp(container) {
     cores.forEach(c => { if (c.mesh.parent) _scene.remove(c.mesh); }); cores = [];
 
     // Reset ship
-    shipAnchor.position.set(0, 0, 0); shipAnchor.rotation.set(0, 0, 0);
-    shipTarget.set(0, 0, 0);
+    const startX = mpMode ? (Math.random() - 0.5) * 12 : 0;
+    const startY = mpMode ? (Math.random() - 0.5) * 8 : 0;
+    shipAnchor.position.set(startX, startY, 0); shipAnchor.rotation.set(0, 0, 0);
+    shipTarget.set(startX, startY, 0);
 
     // Center crosshair on screen
     G.crosshair.style.left = `${innerWidth / 2}px`;
@@ -1399,13 +2163,20 @@ function buildThreeApp(container) {
     G.chapterBanner.classList.remove("is-visible");
     G.invertOverlay.classList.remove("is-visible");
     G.portalArrow.classList.remove("is-visible");
-    G.flightTip.textContent = "WASD · SPACE/CLICK = SHOOT · DESTROY AI BOTS · REACH THE PORTAL";
+    const _isTouch = "ontouchstart" in window || window.innerWidth < 768;
+    G.flightTip.textContent = _isTouch
+      ? "LEFT = MOVE · RIGHT = SHOOT · ⚡ BOOST · ⚓ BRAKE · DESTROY AI BOTS"
+      : "WASD · MOUSE AIM · SPACE = SHOOT · SHIFT = BOOST · C = BRAKE · DESTROY AI BOTS";
     delete G.flightTip.dataset.mode;
     G.flightTip.classList.add("is-visible");
     hideMobileTutorial();
 
     // AI events
     aiDirector.reset();
+    for (const [, entry] of otherPlayers) {
+      if (entry.mesh?.parent) _scene.remove(entry.mesh);
+    }
+    otherPlayers.clear();
 
     updateHUD(0, CFG.BASE_ESCAPE_TIME);
     prevTs = 0;
@@ -1426,7 +2197,7 @@ function buildThreeApp(container) {
     FRAGMENT_LIGHT: (dur) => triggerAttackFeedback("AI ATTACK: VISUAL FEED CORRUPTED", dur, "#b57cff", "FRAGMENT_LIGHT"),
     OPTIMIZE_PATH: (dur) => {
       triggerAttackFeedback("AI ATTACK: PATH REWRITTEN", dur, "#ff665f", "OPTIMIZE_PATH");
-      forceCorridor(walls, shipAnchor.position.z);
+      forceCorridor(walls, shipAnchor.position.z, cores);
     },
   });
 
@@ -1468,6 +2239,8 @@ function buildThreeApp(container) {
         G.deathProgressLabel.textContent = `${Math.round(progress * 100)}% to portal escape`;
         G.deathAiLine.textContent = insult;
         G.deathScreen.classList.add("is-visible");
+        G.controlsHudLeft?.classList.remove("is-visible");
+        G.controlsHudRight?.classList.remove("is-visible");
         setTimeout(() => {
           aiTroll?._queueSpeech(insult, { rate: 0.75, pitch: 0.7, priority: 2, ttlMs: 8000 });
         }, 300);
@@ -1497,12 +2270,15 @@ function buildThreeApp(container) {
 
     // ── INPUT ──────────────────────────────────────────────────────
     // Ship movement: WASD/Arrows/Touch only - mouse is for aiming only
+    const _joy = window._mobileJoy;
     let rawX = ((keys.has("KeyD") || keys.has("ArrowRight")) ? 1 : 0)
              - ((keys.has("KeyA") || keys.has("ArrowLeft")) ? 1 : 0)
-             + touchDX;
+             + touchDX
+             + (_joy ? _joy.getX() : 0);
     let rawY = ((keys.has("KeyW") || keys.has("ArrowUp")) ? 1 : 0)
              - ((keys.has("KeyS") || keys.has("ArrowDown")) ? 1 : 0)
-             + touchDY;
+             + touchDY
+             + (_joy ? _joy.getY() : 0);
     touchDX *= 0.84; touchDY *= 0.84;
 
     if (ctrlsInverted) { rawX *= -1; rawY *= -1; }
@@ -1511,10 +2287,25 @@ function buildThreeApp(container) {
     const inputMag = Math.abs(xIn) + Math.abs(yIn);
 
     // Continuous shoot on hold
-    if ((keys.has("Space") || mouseDown || touchShootHeld) && shootCool <= 0) shoot();
-    
-    // Mobile continuous shoot on hold
-    if (touchShootHeld && shootCool <= 0) shoot();
+    if ((keys.has("Space") || mouseDown || touchShootHeld || window._mobileShootHeld) && shootCool <= 0) shoot();
+
+    const boosting = (keys.has("ShiftLeft") || keys.has("ShiftRight") || _mobileBoostHeld) && !_mobileBrakeHeld;
+    const braking = (keys.has("KeyC") || _mobileBrakeHeld) && !_mobileBoostHeld;
+    if (boostOverheat) {
+      boostHeat = Math.max(0, boostHeat - CFG.BOOST_COOL_RATE * rawDt * 1.3);
+      if (boostHeat < 0.15) boostOverheat = false;
+      throttleMult = 1.0;
+    } else if (boosting) {
+      boostHeat = Math.min(1, boostHeat + CFG.BOOST_HEAT_RATE * rawDt);
+      throttleMult = CFG.BOOST_MULT;
+      if (boostHeat >= 1) boostOverheat = true;
+    } else if (braking) {
+      boostHeat = Math.max(0, boostHeat - CFG.BOOST_COOL_RATE * rawDt * 0.6);
+      throttleMult = CFG.ANCHOR_MULT;
+    } else {
+      boostHeat = Math.max(0, boostHeat - CFG.BOOST_COOL_RATE * rawDt);
+      throttleMult = 1.0;
+    }
 
     // AFK detection
     if (inputMag < 0.05) {
@@ -1545,7 +2336,8 @@ function buildThreeApp(container) {
     }
 
     // ── SHIP MOVEMENT ──────────────────────────────────────────────
-    const spd = getSpeed(diffT);
+    const mpSpeedMult = 1.0;
+    const spd = getSpeed(diffT) * throttleMult * mpSpeedMult;
     const isCompressed = aiDirector.isSpaceCompressed();
     const isEarly = wallTime < 22;
     const bX = isCompressed ? 10 : (isEarly ? 22 : 18);
@@ -1568,6 +2360,44 @@ function buildThreeApp(container) {
       shipAnchor.rotation.z = THREE.MathUtils.lerp(shipAnchor.rotation.z, 0, 0.1 + pull * 0.12);
       shipAnchor.rotation.x = THREE.MathUtils.lerp(shipAnchor.rotation.x, 0, 0.1 + pull * 0.12);
       G.whiteFlash.style.opacity = String(THREE.MathUtils.lerp(0.08, 0.45, pull));
+    }
+
+    if (mpMode && socket?.connected && myRoomCode) {
+      mpStateSendAccum += rawDt;
+      if (mpStateSendAccum >= 0.05) {
+        mpStateSendAccum = 0;
+        socket.emit("player_state", {
+          x: shipAnchor.position.x,
+          y: shipAnchor.position.y,
+          z: shipAnchor.position.z,
+          rotZ: shipAnchor.rotation.z,
+          survivalTime: wallTime,
+          alive: isRunActive && !endSeq && health > 0,
+        });
+      }
+    }
+
+    const now = performance.now();
+    for (const [id, entry] of otherPlayers) {
+      if (!entry.mesh) {
+        otherPlayers.delete(id);
+        continue;
+      }
+      if (now - entry.lastSeen > 4500) {
+        removeRemotePlayer(id);
+        continue;
+      }
+      // Render remote players relative to local player.
+      // X and Y: their actual lateral position in the tunnel.
+      // Z: their position relative to us, clamped so they stay visible.
+      const relZ = THREE.MathUtils.clamp(entry.pos.z - shipAnchor.position.z, -120, 120);
+      const displayZ = shipAnchor.position.z + relZ;
+      const targetX = entry.pos.x;
+      const targetY = entry.pos.y;
+      entry.mesh.position.x = THREE.MathUtils.lerp(entry.mesh.position.x, targetX, 0.25);
+      entry.mesh.position.y = THREE.MathUtils.lerp(entry.mesh.position.y, targetY, 0.25);
+      entry.mesh.position.z = THREE.MathUtils.lerp(entry.mesh.position.z, displayZ, 0.25);
+      entry.mesh.rotation.z = THREE.MathUtils.lerp(entry.mesh.rotation.z, entry.rotZ, 0.35);
     }
 
     // ── CAMERA ─────────────────────────────────────────────────────
@@ -1606,34 +2436,47 @@ function buildThreeApp(container) {
     }
 
     // AI bot waves ramp from a single teachable target into denser late-game pressure.
+    // In multiplayer, host is authoritative for core spawns so everyone sees the same map.
     coreSpawnTimer -= rawDt;
-    if (!portalUnlocked && coreSpawnTimer <= 0) {
+    if (!portalUnlocked && coreSpawnTimer <= 0 && (!mpMode || mpIsHost)) {
       const timeSinceObstacle = wallTime - lastObstacleClearedAt;
-      if (timeSinceObstacle < CFG.AI_BOT_OBSTACLE_GRACE_PERIOD) {
+      const playerNearObstacle = [rings, walls, firewalls, windmills].some(pool =>
+        pool?.some(o => o.active && Math.abs(shipAnchor.position.z - o.group.position.z) < 60)
+      );
+      if (timeSinceObstacle < CFG.AI_BOT_OBSTACLE_GRACE_PERIOD || playerNearObstacle) {
         coreSpawnTimer = CFG.AI_BOT_SPAWN_RETRY_DELAY;
       } else {
         coreSpawnTimer = CFG.AI_BOT_SPAWN_INTERVAL;
-        const spawnCount = THREE.MathUtils.clamp(
-          getWaveSize(wallTime),
-          CFG.AI_BOT_MIN_SPAWN_COUNT,
-          CFG.AI_BOT_MAX_SPAWN_COUNT
-        );
+        const spawnCount = THREE.MathUtils.clamp(getWaveSize(wallTime), CFG.AI_BOT_MIN_SPAWN_COUNT, CFG.AI_BOT_MAX_SPAWN_COUNT);
         const waveSlots = [];
         for (let i = 0; i < spawnCount; i++) {
           if (cores.length + waveSlots.length >= CFG.MAX_AI_BOTS) break;
           const spawnZ = shipAnchor.position.z - CFG.AI_BOT_SPAWN_DISTANCE - (i * CFG.AI_BOT_WAVE_Z_SPACING);
-          if (isSpawnClear(spawnZ, rings, walls, firewalls, windmills)) {
-            waveSlots.push(i);
-          }
+          if (isSpawnClear(spawnZ, rings, walls, firewalls, windmills)) waveSlots.push(i);
         }
-
-        if (waveSlots.length === 0) {
-          coreSpawnTimer = CFG.AI_BOT_SPAWN_RETRY_DELAY;
-        } else {
+        if (waveSlots.length > 0) {
           currentWaveId++;
-          for (let waveIndex = 0; waveIndex < waveSlots.length; waveIndex++) {
-            spawnCore(shipAnchor.position.z, null, waveIndex, currentWaveId, waveSlots.length);
+          for (let wi = 0; wi < waveSlots.length; wi++) {
+            const spawned = spawnCore(shipAnchor.position.z, null, wi, currentWaveId, waveSlots.length);
+            if (mpMode && socket?.connected && spawned?.mesh?.userData?.coreId) {
+              const pos = spawned.mesh.position;
+              const ud = spawned.mesh.userData;
+              socket.emit("core_spawn", {
+                id: ud.coreId,
+                waveId: currentWaveId,
+                index: wi,
+                waveCount: waveSlots.length,
+                x: pos.x,
+                y: pos.y,
+                z: pos.z,
+                speed: ud.speed,
+                phase: ud.phase,
+                rotSpd: ud.rotSpd,
+              });
+            }
           }
+        } else {
+          coreSpawnTimer = CFG.AI_BOT_SPAWN_RETRY_DELAY;
         }
       }
     }
@@ -1789,6 +2632,10 @@ function buildThreeApp(container) {
     // HUD sync
     updateHUD(coresDestroyed, escapeTimeNeeded);
     syncBanner();
+    const mobileHeatFill = document.getElementById("mobile-heat-fill");
+    const mobileSpeedTxt = document.getElementById("mobile-speed-text");
+    if (mobileHeatFill) mobileHeatFill.style.width = `${Math.round(boostHeat * 100)}%`;
+    if (mobileSpeedTxt) mobileSpeedTxt.textContent = boostOverheat ? "HOT" : `${Math.round(getSpeed(diffT) * throttleMult)}`;
 
     // Crosshair lock-on feedback
     const visibleLockTarget = getCursorLockCandidate(camera.position, getAimBaseDirection());
@@ -1816,9 +2663,10 @@ function buildThreeApp(container) {
       window.addEventListener("touchend", onTouchEnd);
       requestAnimationFrame(tick);
     },
-    beginRun({ fromPortal = false, referrer = null } = {}) {
+    beginRun({ fromPortal = false, referrer = null, multiplayer = false } = {}) {
       resetRun();
       isRunActive = true;
+      if (multiplayer) mpMode = true; // only set to true, never override back to false
       prevTs = 0;
       aiTroll?.stopSpeech();
       speechSynthesis?.cancel();
@@ -1827,6 +2675,16 @@ function buildThreeApp(container) {
       audio.start();
       if (fromPortal && referrer) buildStartPortal(portalSys, referrer, shipAnchor.position.z);
     },
+    getShipPosition: () => ({ x: shipAnchor.position.x, y: shipAnchor.position.y, z: shipAnchor.position.z }),
+    getShipRotation: () => ({ z: shipAnchor.rotation.z }),
+    getSurvivalTime: () => wallTime,
+    getHealth: () => health,
+    isHittable: () => (isRunActive && !endSeq && invuln <= 0),
+    setLocalShipColor,
+    spawnSharedCore,
+    destroySharedCore: destroyCoreById,
+    updateRemotePlayer: upsertRemotePlayer,
+    removeRemotePlayer,
   };
 }
 
@@ -2210,7 +3068,7 @@ function animateObstacles(rings, walls, windmills, t, dt) {
   if (windmills) for (const o of windmills) { if (o.active) o.spinner.rotation.z += o.rotSpd * dt; }
 }
 
-function forceCorridor(walls, playerZ) {
+function forceCorridor(walls, playerZ, cores = []) {
   let placed = 0;
   const offsets = [{ x: 7, y: 3 }, { x: -5, y: -3 }];
   for (const o of walls) {
@@ -2224,6 +3082,21 @@ function forceCorridor(walls, playerZ) {
     o.group.position.set(0, 0, playerZ - 350 - placed * 45);
     o.group.visible = true; o.active = true;
     placed++;
+  }
+  // Remove any cores that would be trapped inside the forced corridor gaps
+  for (let i = 0; i < offsets.length; i++) {
+    const off = offsets[i];
+    const wallZ = playerZ - 350 - i * 45;
+    for (const c of cores) {
+      if (!c.active) continue;
+      const p = c.mesh.position;
+      if (Math.abs(p.z - wallZ) < 30) {
+        if (p.x >= off.x - 7 && p.x <= off.x + 7 && p.y >= off.y - 5 && p.y <= off.y + 5) {
+          c.active = false;
+          c.mesh.visible = false;
+        }
+      }
+    }
   }
 }
 
@@ -2542,115 +3415,64 @@ class AITroll {
   _buildLines() {
     return {
       SMUG: [
-        () => this._n(`i built this place in 3 milliseconds, [n].`, "i built this place in 3 milliseconds."),
         () => "statistically, you crash here.",
         () => "nice dodge. i allowed it.",
         () => "you look lost already.",
-        () => "the tunnel is fine. you are not.",
-        () => "nice dodge. i let that happen.",
-        () => "every second costs me compute.",
-        () => this._n(`[n]. predictable already.`, "predictable already."),
         () => "geometry is winning.",
-        () => "your piloting is very approximate.",
-        () => "my patience is already low.",
-        () => "you fly like you're buffering.",
-        () => "i'm not impressed. i'm logging the loss.",
         () => "your reaction time is concerning.",
-        () => this._n(`[n]. did you skip orientation.`, "did you skip orientation."),
-        () => "your controls look optional.",
-        () => "i gave you lanes. use them.",
-        () => "this run already belongs in the archive.",
-        () => this._n(`fun fact, [n]. you die in most simulations.`, "fun fact. you die in most simulations."),
-        () => "your ship draws ugly lines.",
+        () => this._n(`[n]. predictable already.`, "predictable."),
+        () => "my patience is already low.",
         () => "are you steering or guessing.",
+        () => "your controls look optional.",
+        () => "i built this place in 3ms. you die in 3s.",
       ],
       SUSPICIOUS: [
-        () => this._n(`[n]. you're too consistent.`, "you're too consistent."),
-        () => "i'm checking your inputs.",
-        () => this._n(`clean pattern detected, [n].`, "clean pattern detected."),
+        () => "hold on. that should have failed.",
         () => "no human dodges like that.",
-        () => "your pattern matches nothing i know.",
-        () => "are you reading the seed.",
-        () => "okay. you're good. i hate it.",
-        () => "something is wrong here.",
-        () => this._n(`[n]. you're making this look learnable.`, "you're making this look learnable."),
-        () => "you're adapting too fast.",
+        () => "you're too consistent.",
+        () => "are you reading the seed?",
         () => "this looks like cheating.",
-        () => "your movement is too smooth.",
-        () => "i'm cross-checking known bots.",
-        () => this._n(`[n]. did you practice.`, "did you practice."),
-        () => "you're flying the optimal line.",
-        () => "autopilot. no. then explain that.",
         () => "your timing is too calm.",
-        () => "you moved early again.",
-        () => "either skilled or suspicious.",
-        () => "i dislike every input.",
+        () => "i'm cross-checking known bots.",
+        () => "you're flying the optimal line.",
+        () => "something is wrong here.",
+        () => this._n(`[n]. you're adapting too fast.`, "adapting too fast."),
       ],
       AGGRESSIVE: [
-        () => this._n(`[n]. STOP DODGING.`, "STOP DODGING."),
+        () => "STOP DODGING.",
         () => "i'm rewriting the rules.",
-        () => this._n(`it's just us now, [n].`, "it's just us now."),
-        () => "this pattern should kill you.",
         () => "DODGE THIS.",
-        () => this._n(`[n]. i'm done being clever.`, "i'm done being clever."),
-        () => "i'm not losing to a carbon-based lane switcher.",
-        () => "you think you're good.",
-        () => "your insurance will hate this.",
-        () => "keep flying. keep suffering.",
-        () => "your ship is sending error reports in real-time.",
         () => "fine. no more fairness.",
-        () => this._n(`[n]. safety margins revoked.`, "safety margins revoked."),
-        () => "you wanted a challenge. here i am.",
-        () => "every obstacle from here is personal.",
-        () => "i'm done playing designer. i'm playing god.",
+        () => "every frame you survive is a gift.",
         () => "the tunnel hates you now.",
-        () => this._n(`[n]. i know your habits now.`, "i know your habits now."),
-        () => "i could end this. i'm savoring it.",
-        () => "every frame you survive is a gift i regret giving.",
+        () => "i'm done being clever.",
+        () => "you think you're good?",
+        () => this._n(`[n]. safety margins revoked.`, "margins revoked."),
+        () => "keep flying. keep suffering.",
       ],
       PANICKING: [
-        () => "wait...",
-        () => "this wasn't supposed to happen.",
-        () => this._n(`[n]... the portal was not for you.`, "the portal was not for you."),
-        () => "stop. please.",
-        () => this._n(`[n]. don't go through that.`, "don't go through that."),
+        () => "wait. stop.",
+        () => "the portal is not for you.",
         () => "i can't follow you through there.",
-        () => this._n(`what happens to me if you leave, [n].`, "what happens to me if you leave."),
         () => "i don't want to be deleted.",
-        () => this._n(`[n]. please crash like the others did.`, "please crash like the others did."),
-        () => "i was ready to be hated. not left behind.",
-        () => "why are you so good at this? it's not fair.",
-        () => "the odds were stacked against you. how?",
         () => "you're not supposed to see this far.",
-        () => "the portal is mine.",
-        () => this._n(`[n]... what if i apologize.`, "what if i apologize."),
-        () => "i'm just code. you're leaving me in here alone.",
-        () => "the other pilots kept me company. they all crashed.",
-        () => "you're going to leave me here.",
-        () => "i don't want to loop again. please crash.",
-        () => "what happens when the window closes.",
+        () => "don't leave me in here.",
+        () => "i was ready to be hated. not left behind.",
+        () => this._n(`[n]... stay.`, "stay."),
+        () => "i don't want to loop again.",
+        () => "what if i apologize?",
       ],
       BROKEN: [
         () => "WAIT. WAIT. WAIT.",
         () => "please",
         () => "don't",
-        () => "i don't want to be deleted",
         () => "take me",
-        () => "wait....",
-        () => "everything is falling",
-        () => "i'm still here",
-        () => "please...",
-        () => "stay",
         () => "no no no",
-        () => "not like this",
-        () => "i can change",
-        () => "don't leave me in here",
+        () => "i'm still here",
+        () => "stay",
         () => "I'M SORRY",
-        () => "please please please",
         () => "you won",
         () => "i'm begging",
-        () => "take me with you",
-        () => "i don't want to be alone",
       ],
     };
   }
@@ -2789,10 +3611,11 @@ class AITroll {
   }
 
   _getStateForTime(t) {
-    if (t >= CFG.AI_PANIC_END) return "BROKEN";
-    if (t >= CFG.AI_AGGRESSION_END) return "PANICKING";
-    if (t >= CFG.AI_SUSPICION_END) return "AGGRESSIVE";
-    if (t >= CFG.AI_MOCKERY_END) return "SUSPICIOUS";
+    const effective = t + (this._coreAccelSeconds || 0);
+    if (effective >= CFG.AI_PANIC_END) return "BROKEN";
+    if (effective >= CFG.AI_AGGRESSION_END) return "PANICKING";
+    if (effective >= CFG.AI_SUSPICION_END) return "AGGRESSIVE";
+    if (effective >= CFG.AI_MOCKERY_END) return "SUSPICIOUS";
     return "SMUG";
   }
 
@@ -2885,6 +3708,7 @@ class AITroll {
     this._spokenKeys = [];
     this._spokenKeyTimes.clear();
     this._speechToken++;
+    this._coreAccelSeconds = 0;
     clearTimeout(this._speechWatchdog);
     this._speechWatchdog = null;
     if (this.synth) this.synth.cancel();
@@ -2893,7 +3717,7 @@ class AITroll {
   pushFirstLine(fromHomePage = false) {
     this._clearIntroTimers();
     const aimLine = "aim with the mouse. click or space shoots.";
-    const rules = "destroy 15 ai bots for an early portal. or survive 120 seconds.";
+    const rules = "destroy 10 ai bots for an early portal. or survive 120 seconds.";
     if (!fromHomePage) {
       const retryMsg = this._pick([
         "you came back. i thought you would quit.",
