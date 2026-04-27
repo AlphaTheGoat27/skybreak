@@ -247,8 +247,8 @@ if (![x, y, z, dx, dy, dz].every(Number.isFinite)) return;
       const dzPos = p.z - z;
       const dist3D = Math.sqrt(dxPos*dxPos + dyPos*dyPos + dzPos*dzPos);
       
-      // Hit if close enough in 3D space (6 units)
-      if (dist3D < 6.0 && dist3D < bestDist) {
+      // Hit if close enough in 3D space (9 units)
+      if (dist3D < 9.0 && dist3D < bestDist) {
         bestDist = dist3D;
         victim = p;
       }

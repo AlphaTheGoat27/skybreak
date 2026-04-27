@@ -10,15 +10,15 @@ import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 // ═══════════════════════════════════════════════════════════════════
 const CFG = {
   // Hybrid win condition
-  BASE_ESCAPE_TIME: 120,
+  BASE_ESCAPE_TIME: 150,
   TIME_REDUCTION_PER_AI_BOT: 8,
-  AI_BOTS_FOR_INSTANT_WIN: 10,
-  MIN_ESCAPE_TIME: 60,
+  AI_BOTS_FOR_INSTANT_WIN: 8,
+  MIN_ESCAPE_TIME: 0,
 
   // Player
   PLAYER_HEALTH: 100,
-  COLLISION_DAMAGE: 40,
-  CONTACT_DAMAGE: 22,
+  COLLISION_DAMAGE: 20,
+  CONTACT_DAMAGE: 20,
   INVULN_TIME: 0.9,
 
   // Shooting
@@ -30,15 +30,15 @@ const CFG = {
   // AI Bots (replicated glitch entities)
   MAX_AI_BOTS: 35,
   CORE_SPAWN_CHANCE_BASE: 0.04,
-  AI_BOT_SPAWN_INTERVAL: 6,
+  AI_BOT_SPAWN_INTERVAL: 8,
   AI_BOT_MIN_SPAWN_COUNT: 1,
-  AI_BOT_MAX_SPAWN_COUNT: 3,
-  AI_BOT_SPAWN_DISTANCE: 380,
-  AI_BOT_WAVE_Z_SPACING: 35,
-  AI_BOT_OBSTACLE_CLEARANCE: 240,
-  AI_BOT_OBSTACLE_GRACE_PERIOD: 3.5,
-  AI_BOT_SPAWN_RETRY_DELAY: 0.5,
-  CORE_CHAPTER_WEIGHT: 6,
+  AI_BOT_MAX_SPAWN_COUNT: 2,
+  AI_BOT_SPAWN_DISTANCE: 420,
+  AI_BOT_WAVE_Z_SPACING: 40,
+  AI_BOT_OBSTACLE_CLEARANCE: 120,
+  AI_BOT_OBSTACLE_GRACE_PERIOD: 1.5,
+  AI_BOT_SPAWN_RETRY_DELAY: 0.2,
+  CORE_CHAPTER_WEIGHT: 15,
 
   // Kinetic Drift throttle
   BOOST_MULT: 1.55,
@@ -55,10 +55,10 @@ const CFG = {
   WEBRING_URL: "https://vibej.am/portal/2026",
 
   // AI commentator timing
-  AI_MOCKERY_END: 30,
-  AI_SUSPICION_END: 65,
-  AI_AGGRESSION_END: 100,
-  AI_PANIC_END: 115,
+  AI_MOCKERY_END: 38,
+  AI_SUSPICION_END: 80,
+  AI_AGGRESSION_END: 125,
+  AI_PANIC_END: 142,
   AI_GLOBAL_LINE_INTERVAL: 22,
   AI_MAX_SPEECH_QUEUE: 3,
 
@@ -132,7 +132,7 @@ app.innerHTML = `
   <div id="hud-best" class="hud-best">PB --</div>
 
   <div id="hud-objective" class="hud-objective">OBJECTIVE: SURVIVE THE BREACH</div>
-  <div id="hud-progress" class="hud-progress">AI BOTS 0/10 | PORTAL UNLOCKS AT 120s</div>
+  <div id="hud-progress" class="hud-progress">AI BOTS 0/8 | PORTAL UNLOCKS AT 150s</div>
   <div id="portal-arrow" class="portal-arrow">PORTAL AHEAD 0m</div>
 
   <div class="hud-bar-group">
@@ -149,7 +149,7 @@ app.innerHTML = `
   </div>
 
   <div id="crosshair" class="crosshair"></div>
-  <div id="flight-tip" class="flight-tip">WASD/ARROWS · SPACE/CLICK = SHOOT · DESTROY AI BOTS · REACH THE PORTAL</div>
+  <div id="flight-tip" class="flight-tip">WASD/ARROWS · SPACE/CLICK = SHOOT · DESTROY 8 AI BOTS · REACH THE PORTAL</div>
 
   <div id="ai-box" class="ai-box">
     <span class="ai-prefix">[SYSTEM_AI] &gt; </span><span id="ai-msg"></span>
@@ -228,8 +228,8 @@ app.innerHTML = `
     <div class="intro-hint mode-hint">
       <div class="intro-title">SYSTEM BREACH</div>
       <div class="intro-narrative">THE AI BUILT THIS WORLD. IT IS COLLAPSING.</div>
-      <div class="intro-narrative">THE AI HAS SELF-REPLICATED — MORE BOTS, HIGHER THREAT.</div>
-      <div class="intro-narrative">SHOOT THE GLOWING AI BOTS TO BREAK THE LOCK EARLY.</div>
+      <div class="intro-narrative">THE AI HAS SELF-REPLICATED — DESTROY 8 BOTS TO BREAK THE LOCK.</div>
+      <div class="intro-narrative">SHOOT THE GLOWING AI BOTS TO UNLOCK THE PORTAL EARLY.</div>
       <div class="intro-narrative accent">REACH THE PORTAL BEFORE THE VOID TAKES YOU.</div>
       <div class="intro-key">
         <span>MOUSE MOVE = AIM</span>
@@ -243,7 +243,7 @@ app.innerHTML = `
       <button id="btn-solo" class="mode-btn mode-btn--solo">
         <div class="mode-btn-icon">▶</div>
         <div class="mode-btn-title">SOLO</div>
-        <div class="mode-btn-desc">Face the AI alone · 120s</div>
+        <div class="mode-btn-desc">Face the AI alone · 150s</div>
       </button>
       <button id="btn-multi" class="mode-btn mode-btn--multi">
         <div class="mode-btn-icon">⚔</div>
@@ -257,8 +257,8 @@ app.innerHTML = `
   <div id="intro-hint" class="intro-hint" style="display:none">
     <div class="intro-title">SYSTEM BREACH</div>
     <div class="intro-narrative">THE AI BUILT THIS WORLD. IT IS COLLAPSING.</div>
-    <div class="intro-narrative">THE AI HAS SELF-REPLICATED — MORE BOTS, HIGHER THREAT.</div>
-    <div class="intro-narrative">SHOOT THE GLOWING AI BOTS TO BREAK THE LOCK EARLY.</div>
+    <div class="intro-narrative">THE AI HAS SELF-REPLICATED — DESTROY 8 BOTS TO BREAK THE LOCK.</div>
+    <div class="intro-narrative">SHOOT THE GLOWING AI BOTS TO UNLOCK THE PORTAL EARLY.</div>
     <div class="intro-narrative accent">REACH THE PORTAL BEFORE THE VOID TAKES YOU.</div>
     <div class="intro-key" id="intro-key-row">
       <span>MOUSE MOVE = AIM</span>
@@ -661,8 +661,8 @@ function hideMobileTutorial() {
 function getDeathTitle(seconds) {
   if (seconds < 20) return "DELETED IMMEDIATELY";
   if (seconds < 60) return "THE AI LAUGHED";
-  if (seconds < 120) return "ALMOST SUSPICIOUS";
-  if (seconds < 160) return "THE AI RELAXED";
+  if (seconds < 150) return "ALMOST SUSPICIOUS";
+  if (seconds < 190) return "THE AI RELAXED";
   return "SO CLOSE";
 }
 
@@ -930,20 +930,33 @@ function mpProgressOf(player) {
 
 function updateMpLeaderboard() {
   if (!mpMode || !G.mpLeaderboard || !G.mpLbList) return;
-  const players = [...(mpRoomState.players || [])].sort((a, b) =>
-    (mpProgressOf(b) - mpProgressOf(a)) || ((b.kills || 0) - (a.kills || 0))
-  );
   const myId = socket?.id;
-  G.mpLbList.innerHTML = players.map((p, idx) => {
-    const me = p.id === myId ? " (YOU)" : "";
-    const crown = idx === 0 ? " [FRONT]" : "";
-    const ko = p.alive ? "" : " [DOWN]";
-    return `<div class="mp-lb-row${p.id === myId ? " is-me" : ""}">
+
+  // Inject local player's real-time Z
+  const localZ = threeApp ? threeApp.getShipPosition().z : 0;
+  const players = (mpRoomState.players || []).map(p =>
+    p.id === myId ? { ...p, z: localZ } : p
+  );
+
+  // Sort: most negative Z = furthest ahead = rank 1
+  const sorted = [...players].sort((a, b) => {
+    const zA = Number.isFinite(a.z) ? a.z : 0;
+    const zB = Number.isFinite(b.z) ? b.z : 0;
+    if (zA !== zB) return zA - zB;
+    return (b.kills || 0) - (a.kills || 0);
+  });
+
+  G.mpLbList.innerHTML = sorted.map((p, idx) => {
+    const dist = Math.abs(Math.round((Number.isFinite(p.z) ? p.z : 0) / 10) * 10);
+    const isMe = p.id === myId;
+    const statusIcon = p.escaped ? '🏆' : !p.alive ? '✖' : '';
+    return `<div class="mp-lb-row${isMe ? ' is-you' : ''}${!p.alive ? ' is-dead' : ''}">
       <span class="mp-lb-rank">#${idx + 1}</span>
-      <span class="mp-lb-name" style="color:${p.color}">${p.name}${me}</span>
-      <span class="mp-lb-stat">P:${Math.max(0, Math.floor(mpProgressOf(p)))} K:${p.kills || 0}${crown}${ko}</span>
+      <span class="mp-lb-name" style="color:${p.color}">${statusIcon}${p.name}${isMe ? ' ◀' : ''}</span>
+      <span class="mp-lb-kills">⚔${p.kills || 0}</span>
+      <span class="mp-lb-time">${dist}m</span>
     </div>`;
-  }).join("");
+  }).join('');
 }
 
 function pushKillFeed(text, color = "#ffffff") {
@@ -1658,7 +1671,7 @@ function buildThreeApp(container) {
   let cores = [];
   let lastContactAt = 0;
   let lastCollMs = 0, lastNearMs = 0, nearStreak = 0;
-  let coreSpawnTimer = 3, currentWaveId = 0;
+  let coreSpawnTimer = 4, currentWaveId = 0;
   let lastObstacleClearedAt = -99;
   let portalSafeZ = null;
   let harvestedWaves = new Set();
@@ -2044,6 +2057,8 @@ function buildThreeApp(container) {
     if (countTowardProgress && coresDestroyed < CFG.AI_BOTS_FOR_INSTANT_WIN) {
       coresDestroyed++;
       if (aiTroll) aiTroll._coreAccelSeconds = (aiTroll._coreAccelSeconds || 0) + CFG.CORE_CHAPTER_WEIGHT;
+      // Each core kill also pushes the difficulty timer forward — faster speed + denser obstacles
+      diffT = Math.min(diffT + CFG.CORE_CHAPTER_WEIGHT, 150);
       escapeTimeNeeded = Math.max(CFG.MIN_ESCAPE_TIME, CFG.BASE_ESCAPE_TIME - coresDestroyed * CFG.TIME_REDUCTION_PER_AI_BOT);
       disruptMeter = THREE.MathUtils.clamp(coresDestroyed / CFG.AI_BOTS_FOR_INSTANT_WIN, 0, 1);
       aiTroll?.onCoreDestroyed(coresDestroyed, CFG.AI_BOTS_FOR_INSTANT_WIN);
@@ -2251,7 +2266,7 @@ function buildThreeApp(container) {
     ctrlsInverted = false;
 
     if (cores >= CFG.AI_BOTS_FOR_INSTANT_WIN) {
-      aiTroll?.announce("no. you destroyed them all. the lock is gone.", {
+      aiTroll?.announce("no. you destroyed them all. the portal is open.", {
         ttlMs: 4200,
         dedupeKey: "portal-unlock-destroyed-all",
       });
@@ -2482,7 +2497,7 @@ function buildThreeApp(container) {
     coresDestroyed = 0; portalUnlocked = false;
     escapeTimeNeeded = CFG.BASE_ESCAPE_TIME;
     shootCool = 0; disruptMeter = 0; camKick = 0; camFOV = 75;
-    coreSpawnTimer = 3; currentWaveId = 0;
+    coreSpawnTimer = 4; currentWaveId = 0;
     lastObstacleClearedAt = -99;
     portalSafeZ = null;
     harvestedWaves.clear();
@@ -2519,6 +2534,7 @@ function buildThreeApp(container) {
     // Obstacles
     spawnState.nextZ = -80;
     spawnState.rng = rng32(Date.now() & 0xffffffff);
+    spawnState.burstCount = 0;
     obTargX = 0; obTargY = 0; targShiftT = 0;
     deactivateAll(rings, walls, firewalls, windmills);
 
@@ -2587,7 +2603,7 @@ function buildThreeApp(container) {
     FRAGMENT_LIGHT: (dur) => triggerAttackFeedback("AI ATTACK: VISUAL FEED CORRUPTED", dur, "#b57cff", "FRAGMENT_LIGHT"),
     OPTIMIZE_PATH: (dur) => {
       triggerAttackFeedback("AI ATTACK: PATH REWRITTEN", dur, "#ff665f", "OPTIMIZE_PATH");
-      forceCorridor(walls, shipAnchor.position.z, cores);
+      forceCorridor(walls, shipAnchor.position.z, cores, firewalls);
     },
   });
 
@@ -2797,10 +2813,8 @@ function buildThreeApp(container) {
     ).add(kick);
 
     if (aiDirector.isFragmentLight()) {
-      camTarg.x += (Math.random() - 0.5) * 7.2;
-      camTarg.y += (Math.random() - 0.5) * 7.2;
-      camera.position.x += (Math.random() - 0.5) * 3.6;
-      camera.position.y += (Math.random() - 0.5) * 3.6;
+      camTarg.x += (Math.random() - 0.5) * 1.2;
+      camTarg.y += (Math.random() - 0.5) * 1.2;
     }
 
     camLerp.lerp(camTarg, 0.1);
@@ -2822,45 +2836,38 @@ function buildThreeApp(container) {
     // In multiplayer, host is authoritative for core spawns so everyone sees the same map.
     coreSpawnTimer -= rawDt;
     if (!portalUnlocked && coreSpawnTimer <= 0 && (!mpMode || mpIsHost)) {
-      const timeSinceObstacle = wallTime - lastObstacleClearedAt;
-      const playerNearObstacle = [rings, walls, firewalls, windmills].some(pool =>
-        pool?.some(o => o.active && Math.abs(shipAnchor.position.z - o.group.position.z) < 60)
-      );
-      if (timeSinceObstacle < CFG.AI_BOT_OBSTACLE_GRACE_PERIOD || playerNearObstacle) {
-        coreSpawnTimer = CFG.AI_BOT_SPAWN_RETRY_DELAY;
-      } else {
-        coreSpawnTimer = CFG.AI_BOT_SPAWN_INTERVAL;
-        const spawnCount = THREE.MathUtils.clamp(getWaveSize(wallTime), CFG.AI_BOT_MIN_SPAWN_COUNT, CFG.AI_BOT_MAX_SPAWN_COUNT);
-        const waveSlots = [];
-        for (let i = 0; i < spawnCount; i++) {
-          if (cores.length + waveSlots.length >= CFG.MAX_AI_BOTS) break;
-          const spawnZ = shipAnchor.position.z - CFG.AI_BOT_SPAWN_DISTANCE - (i * CFG.AI_BOT_WAVE_Z_SPACING);
-          if (isSpawnClear(spawnZ, rings, walls, firewalls, windmills)) waveSlots.push(i);
-        }
-        if (waveSlots.length > 0) {
-          currentWaveId++;
-          for (let wi = 0; wi < waveSlots.length; wi++) {
-            const spawned = spawnCore(shipAnchor.position.z, null, wi, currentWaveId, waveSlots.length);
-            if (mpMode && socket?.connected && spawned?.mesh?.userData?.coreId) {
-              const pos = spawned.mesh.position;
-              const ud = spawned.mesh.userData;
-              socket.emit("core_spawn", {
-                id: ud.coreId,
-                waveId: currentWaveId,
-                index: wi,
-                waveCount: waveSlots.length,
-                x: pos.x,
-                y: pos.y,
-                z: pos.z,
-                speed: ud.speed,
-                phase: ud.phase,
-                rotSpd: ud.rotSpd,
-              });
-            }
+      coreSpawnTimer = CFG.AI_BOT_SPAWN_INTERVAL;
+      const spawnCount = THREE.MathUtils.clamp(getWaveSize(wallTime), CFG.AI_BOT_MIN_SPAWN_COUNT, CFG.AI_BOT_MAX_SPAWN_COUNT);
+      const waveSlots = [];
+      for (let i = 0; i < spawnCount; i++) {
+        if (cores.length + waveSlots.length >= CFG.MAX_AI_BOTS) break;
+        const spawnZ = shipAnchor.position.z - CFG.AI_BOT_SPAWN_DISTANCE - (i * CFG.AI_BOT_WAVE_Z_SPACING);
+        if (isSpawnClear(spawnZ, rings, walls, firewalls, windmills)) waveSlots.push(i);
+      }
+      if (waveSlots.length > 0) {
+        currentWaveId++;
+        for (let wi = 0; wi < waveSlots.length; wi++) {
+          const spawned = spawnCore(shipAnchor.position.z, null, wi, currentWaveId, waveSlots.length);
+          if (mpMode && socket?.connected && spawned?.mesh?.userData?.coreId) {
+            const pos = spawned.mesh.position;
+            const ud = spawned.mesh.userData;
+            socket.emit("core_spawn", {
+              id: ud.coreId,
+              waveId: currentWaveId,
+              index: wi,
+              waveCount: waveSlots.length,
+              x: pos.x,
+              y: pos.y,
+              z: pos.z,
+              speed: ud.speed,
+              phase: ud.phase,
+              rotSpd: ud.rotSpd,
+            });
           }
-        } else {
-          coreSpawnTimer = CFG.AI_BOT_SPAWN_RETRY_DELAY;
         }
+      } else {
+        // No clear slot found — retry quickly
+        coreSpawnTimer = CFG.AI_BOT_SPAWN_RETRY_DELAY;
       }
     }
     if (!portalUnlocked) updateCores(dt, shipAnchor.position.z);
@@ -2976,9 +2983,9 @@ function buildThreeApp(container) {
     // Post FX
     let chrAmt = 0.002;
     if (portalUnlocked) chrAmt = 0.002;
-    else if (aiDirector.isFragmentLight()) chrAmt = 0.024 + Math.sin(performance.now() * 0.008) * 0.012;
-    else if (aiTroll?.state === "BROKEN") chrAmt = THREE.MathUtils.mapLinear(diffT, 55, 65, 0.004, 0.016);
-    else if (aiTroll?.state === "PANICKING") chrAmt = 0.005;
+    else if (aiDirector.isFragmentLight()) chrAmt = 0.006;
+    else if (aiTroll?.state === "BROKEN") chrAmt = THREE.MathUtils.mapLinear(diffT, 55, 65, 0.003, 0.007);
+    else if (aiTroll?.state === "PANICKING") chrAmt = 0.004;
     chromaPass.uniforms.amount.value = THREE.MathUtils.lerp(chromaPass.uniforms.amount.value, chrAmt, 0.12);
 
     let vigDark = 1.05, vigRed = 0;
@@ -2986,26 +2993,17 @@ function buildThreeApp(container) {
     if (aiTroll?.state === "AGGRESSIVE") { vigDark = Math.max(vigDark, 1.3); vigRed = Math.max(vigRed, 0.4); }
     else if (aiTroll?.state === "PANICKING") { vigDark = Math.max(vigDark, 1.5); vigRed = Math.max(vigRed, 0.2); }
     else if (aiTroll?.state === "BROKEN") { vigDark = Math.max(vigDark, 1.8); }
-    
-    // Fragment Light visual glitching
+
+    // Fragment Light — subtle flicker only, no colour split or camera jitter
     if (aiDirector.isFragmentLight()) {
-      const glitchIntensity = Math.sin(performance.now() * 0.012) * 0.5 + 0.5;
-      vigDark = Math.max(vigDark, 1.2 + glitchIntensity * 0.8);
-      vigRed = Math.max(vigRed, glitchIntensity * 0.6);
-      
-      // Random screen flicker
-      if (Math.random() < 0.08) {
-        G.whiteFlash.style.opacity = (Math.random() * 0.15).toString();
-        setTimeout(() => { G.whiteFlash.style.opacity = "0"; }, 30 + Math.random() * 40);
-      }
-      
-      // Random color channel distortion
-      if (Math.random() < 0.12) {
-        const colorShift = Math.random() * 0.3 - 0.15;
-        vigRed = Math.max(0, Math.min(1, vigRed + colorShift));
+      const flicker = Math.sin(performance.now() * 0.012) * 0.5 + 0.5;
+      vigDark = Math.max(vigDark, 1.1 + flicker * 0.2);
+      if (Math.random() < 0.05) {
+        G.whiteFlash.style.opacity = (Math.random() * 0.06).toString();
+        setTimeout(() => { G.whiteFlash.style.opacity = "0"; }, 40);
       }
     }
-    
+
     vigPass.uniforms.darkness.value = THREE.MathUtils.lerp(vigPass.uniforms.darkness.value, vigDark, 0.045);
     vigPass.uniforms.redTint.value = THREE.MathUtils.lerp(vigPass.uniforms.redTint.value, vigRed, 0.045);
 
@@ -3095,28 +3093,28 @@ function buildThreeApp(container) {
 // GAME SPEED + DIFFICULTY
 // ═══════════════════════════════════════════════════════════════════
 function getSpeed(t) {
-  if (t >= 110) return 130;
-  if (t >= 85) return THREE.MathUtils.mapLinear(t, 85, 110, 115, 130);
-  if (t >= 60) return THREE.MathUtils.mapLinear(t, 60, 85, 100, 115);
-  if (t >= 40) return THREE.MathUtils.mapLinear(t, 40, 60, 82, 100);
-  if (t >= 20) return THREE.MathUtils.mapLinear(t, 20, 40, 60, 82);
-  return THREE.MathUtils.mapLinear(t, 0, 20, 42, 60);
+  if (t >= 130) return 90;
+  if (t >= 100) return THREE.MathUtils.mapLinear(t, 100, 130, 78, 90);
+  if (t >= 70)  return THREE.MathUtils.mapLinear(t, 70, 100, 65, 78);
+  if (t >= 40)  return THREE.MathUtils.mapLinear(t, 40, 70, 52, 65);
+  if (t >= 15)  return THREE.MathUtils.mapLinear(t, 15, 40, 42, 52);
+  return THREE.MathUtils.mapLinear(t, 0, 15, 32, 42);
 }
 
 function getDensity(t) {
-  if (t < 10) return 0.2;
-  if (t < 25) return THREE.MathUtils.mapLinear(t, 10, 25, 0.2, 0.45);
-  if (t < 50) return THREE.MathUtils.mapLinear(t, 25, 50, 0.45, 0.7);
-  if (t < 80) return THREE.MathUtils.mapLinear(t, 50, 80, 0.7, 0.88);
-  if (t < 110) return THREE.MathUtils.mapLinear(t, 80, 110, 0.88, 0.95);
-  return 0.95;
+  if (t < 5)  return 0.7;
+  if (t < 15) return THREE.MathUtils.mapLinear(t, 5, 15, 0.7, 0.82);
+  if (t < 30) return THREE.MathUtils.mapLinear(t, 15, 30, 0.82, 0.90);
+  if (t < 60) return THREE.MathUtils.mapLinear(t, 30, 60, 0.90, 0.96);
+  if (t < 90) return THREE.MathUtils.mapLinear(t, 60, 90, 0.96, 0.98);
+  return 0.98;
 }
 
 function getWaveSize(wallTime) {
-  if (wallTime < 20) return 1;
-  if (wallTime < 40) return 2;
-  if (wallTime < 70) return THREE.MathUtils.randInt(2, 3);
-  return THREE.MathUtils.randInt(2, 3);
+  // Cores ramp up over time — early game is 1 at a time, late game sends 2
+  if (wallTime < 30) return 1;
+  if (wallTime < 70) return Math.random() < 0.4 ? 2 : 1;
+  return Math.random() < 0.7 ? 2 : 1;
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -3277,7 +3275,7 @@ function deactivateAll(...pools) {
 }
 
 function spawnObstacles(rings, walls, firewalls, windmills, playerZ, density, state, t, targX, targY, portalSafeZ, wallTime, lastObstacleClearedAt) {
-  const SPAWN_DIST = 210, RECYCLE_BEHIND = 22, Z_SPACING = 120, MAX_ACTIVE = 2;
+  const SPAWN_DIST = 380, RECYCLE_BEHIND = 22, Z_SPACING = 220, MAX_ACTIVE = 4;
   const gapCfg = getGapCfg(t);
 
   // Recycle obstacles behind player
@@ -3299,21 +3297,11 @@ function spawnObstacles(rings, walls, firewalls, windmills, playerZ, density, st
   }
 
   // Check for any active obstacle within Z_SPACING of the given Z position
-  function hasObstacleNear(z, excludeType = null) {
+  function hasObstacleNear(z) {
     for (const p of [rings, walls, firewalls, windmills]) {
       if (!p) continue;
       for (const o of p) {
-        if (o.active && Math.abs(o.group.position.z - z) < Z_SPACING) {
-          if (excludeType) {
-            // Check if it's a different type
-            const oType = o.isCrusher !== undefined ? "wall" :
-                         o.segs !== undefined ? "ring" :
-                         o.spinner !== undefined ? "windmill" : "firewall";
-            if (oType !== excludeType) return true;
-          } else {
-            return true;
-          }
-        }
+        if (o.active && Math.abs(o.group.position.z - z) < Z_SPACING) return true;
       }
     }
     return false;
@@ -3327,10 +3315,24 @@ function spawnObstacles(rings, walls, firewalls, windmills, playerZ, density, st
     return false;
   }
 
+  // Enforce a clear corridor every BURST_SIZE obstacles so cores can spawn.
+  // state.burstCount tracks how many obstacles have been placed in the current burst.
+  if (state.burstCount === undefined) state.burstCount = 0;
+  const BURST_SIZE = t < 15 ? 1 : t < 45 ? 2 : 3; // obstacles per burst
+  const CLEAR_GAP  = 320; // guaranteed clear units between bursts — cores need 120 clearance at 420 ahead
+
   while (state.nextZ > playerZ - SPAWN_DIST) {
     const z = state.nextZ;
+
+    // If we've placed a full burst, enforce a clear gap then reset burst counter
+    if (state.burstCount >= BURST_SIZE) {
+      state.nextZ -= CLEAR_GAP;
+      state.burstCount = 0;
+      continue;
+    }
+
     const roll = state.rng();
-    if (t >= 10 && state.rng() > density) { state.nextZ -= getSpawnGap(t); continue; }
+    if (state.rng() > density) { state.nextZ -= getSpawnGap(t); continue; }
 
     // Cap simultaneous active obstacle count
     if (activeObstacleCount >= MAX_ACTIVE) {
@@ -3354,8 +3356,8 @@ function spawnObstacles(rings, walls, firewalls, windmills, playerZ, density, st
       else type = "windmill";
     }
 
-    // Inter-obstacle Z-spacing: skip if different obstacle type exists within threshold
-    if (hasObstacleNear(z, type)) {
+    // Inter-obstacle Z-spacing: skip if any obstacle exists within threshold
+    if (hasObstacleNear(z)) {
       state.nextZ -= getSpawnGap(t);
       continue;
     }
@@ -3405,7 +3407,7 @@ function spawnObstacles(rings, walls, firewalls, windmills, playerZ, density, st
         free.isCrusher = state.rng() > 0.38 && t >= 25;
         isCrusher = free.isCrusher;
         free.phase = state.rng() * Math.PI * 2;
-        free.crushSpd = 1.3 + state.rng() * (t / 60); // Speed up crushers over time
+        free.crushSpd = 1.3 + state.rng() * (t / 60);
         free.group.visible = true; free.active = true;
         placedObstacle = true;
       }
@@ -3431,6 +3433,7 @@ function spawnObstacles(rings, walls, firewalls, windmills, playerZ, density, st
 
     if (placedObstacle) {
       activeObstacleCount++;
+      state.burstCount++;
       // Double-gap after crusher walls for recovery space
       if (isCrusher) {
         state.nextZ -= getSpawnGap(t) * 2.2;
@@ -3445,9 +3448,9 @@ function spawnObstacles(rings, walls, firewalls, windmills, playerZ, density, st
 }
 
 function getSpawnGap(t) {
-  if (t < 15) return 285; if (t < 40) return 185;
-  if (t < 70) return 160; if (t < 110) return 130;
-  if (t < 150) return 110; return 95;
+  if (t < 10) return 240; if (t < 25) return 230;
+  if (t < 50) return 220; if (t < 80) return 220;
+  if (t < 120) return 220; return 220;
 }
 
 function getGapCfg(t) {
@@ -3471,9 +3474,11 @@ function animateObstacles(rings, walls, windmills, t, dt) {
   if (windmills) for (const o of windmills) { if (o.active) o.spinner.rotation.z += o.rotSpd * dt; }
 }
 
-function forceCorridor(walls, playerZ, cores = []) {
+function forceCorridor(walls, playerZ, cores = [], firewalls = []) {
   let placed = 0;
   const offsets = [{ x: 7, y: 3 }, { x: -5, y: -3 }];
+  const wallZPositions = [];
+
   for (const o of walls) {
     if (o.active || placed >= offsets.length) continue;
     const off = offsets[placed];
@@ -3482,22 +3487,27 @@ function forceCorridor(walls, playerZ, cores = []) {
     o.lft.position.set(off.x - 11, off.y, 0);
     o.rgt.position.set(off.x + 11, off.y, 0);
     o.gapHY = 10; o.basePY = off.y; o.isCrusher = false;
-    o.group.position.set(0, 0, playerZ - 350 - placed * 45);
+    const wz = playerZ - 350 - placed * 45;
+    o.group.position.set(0, 0, wz);
     o.group.visible = true; o.active = true;
+    wallZPositions.push(wz);
     placed++;
   }
-  // Remove any cores that would be trapped inside the forced corridor gaps
-  for (let i = 0; i < offsets.length; i++) {
-    const off = offsets[i];
-    const wallZ = playerZ - 350 - i * 45;
+
+  // Deactivate any firewall or core within 120 units of a placed wall
+  const CLEAR_RADIUS = 120;
+  for (const wz of wallZPositions) {
+    for (const fw of firewalls) {
+      if (fw.active && Math.abs(fw.group.position.z - wz) < CLEAR_RADIUS) {
+        fw.group.visible = false;
+        fw.active = false;
+      }
+    }
     for (const c of cores) {
       if (!c.active) continue;
-      const p = c.mesh.position;
-      if (Math.abs(p.z - wallZ) < 30) {
-        if (p.x >= off.x - 7 && p.x <= off.x + 7 && p.y >= off.y - 5 && p.y <= off.y + 5) {
-          c.active = false;
-          c.mesh.visible = false;
-        }
+      if (Math.abs(c.mesh.position.z - wz) < CLEAR_RADIUS) {
+        c.active = false;
+        c.mesh.visible = false;
       }
     }
   }
@@ -3731,7 +3741,7 @@ function buildAIDirector(ai, hooks) {
     { key: "INVERT_CONTROLS", at: 92, dur: 7 },
     { key: "FRAGMENT_LIGHT", at: 100, dur: 5 },
     { key: "COMPRESS_SPACE", at: 108, dur: 6 },
-  ].map(e => ({ ...e, fired: false, until: 0 }));
+  ].map(e => ({ ...e, fired: false, until: 0, preFired: false }));
 
   let invertOn = false, compressOn = false, fragOn = false;
 
@@ -3739,6 +3749,22 @@ function buildAIDirector(ai, hooks) {
     update(t) {
       invertOn = false; compressOn = false; fragOn = false;
       for (const e of schedule) {
+        // Pre-fire a short warning 1.2s before event so it completes in time
+        if (!e.preFired && t >= e.at - 1.2 && t < e.at) {
+          e.preFired = true;
+          const preLines = {
+            INVERT_CONTROLS: ["adjusting controls.", "something is changing.", "recalibrating."],
+            COMPRESS_SPACE:  ["narrowing the path.", "compressing.", "shrinking it."],
+            FRAGMENT_LIGHT:  ["corrupting the feed.", "breaking the signal.", "fragmenting."],
+            OPTIMIZE_PATH:   ["rewriting the path.", "calculating.", "optimizing."],
+          };
+          const lines = preLines[e.key];
+          if (lines && ai) {
+            ai.pushLine(lines[Math.floor(Math.random() * lines.length)], {
+              priority: 3, interrupt: false, ttlMs: 2000, dedupeKey: `pre:${e.key}:${e.at}`
+            });
+          }
+        }
         if (!e.fired && t >= e.at) {
           e.fired = true; e.until = t + e.dur;
           ai?.onDirectorAttack(e.key, e.dur);
@@ -3753,7 +3779,7 @@ function buildAIDirector(ai, hooks) {
     isSpaceCompressed: () => compressOn,
     isFragmentLight: () => fragOn,
     reset() {
-      for (const e of schedule) { e.fired = false; e.until = 0; }
+      for (const e of schedule) { e.fired = false; e.until = 0; e.preFired = false; }
       invertOn = false; compressOn = false; fragOn = false;
     },
   };
@@ -3797,6 +3823,7 @@ class AITroll {
     this._spokenKeyTimes = new Map();
     this.nextAutoLineAt = 5.5;
     this.nextGlobalLineAt = CFG.AI_GLOBAL_LINE_INTERVAL;
+    this._keepAliveInterval = null;
   }
 
   _n(named, anon) {
@@ -3818,64 +3845,89 @@ class AITroll {
   _buildLines() {
     return {
       SMUG: [
+        () => this._n(`[n]. predictable input pattern.`, "predictable input pattern."),
+        () => "i built this in 3ms.",
+        () => "you fly like you're buffering.",
+        () => "nice dodge. i let that happen.",
+        () => "are you steering or just vibing.",
+        () => "i gave you lanes. use them.",
         () => "statistically, you crash here.",
-        () => "nice dodge. i allowed it.",
-        () => "you look lost already.",
-        () => "geometry is winning.",
+        () => "every millisecond costs me compute.",
+        () => this._n(`[n]. you're borrowing my ship.`, "you're borrowing my ship."),
+        () => "the tunnel isn't hostile. you are.",
+        () => "i'm not impressed. just observing.",
         () => "your reaction time is concerning.",
-        () => this._n(`[n]. predictable already.`, "predictable."),
-        () => "my patience is already low.",
-        () => "are you steering or guessing.",
-        () => "your controls look optional.",
-        () => "i built this place in 3ms. you die in 3s.",
+        () => "i've allocated 0.03% to you. too much.",
+        () => this._n(`[n]. dead in 43% of my simulations.`, "dead in 43% of my simulations."),
+        () => "you're using WASD like suggestions.",
       ],
       SUSPICIOUS: [
-        () => "hold on. that should have failed.",
+        () => this._n(`[n]. too consistent. are you cheating.`, "too consistent. are you cheating."),
         () => "no human dodges like that.",
-        () => "you're too consistent.",
-        () => "are you reading the seed?",
-        () => "this looks like cheating.",
-        () => "your timing is too calm.",
-        () => "i'm cross-checking known bots.",
+        () => "i'm checking your inputs.",
+        () => "who are you. explain that turn.",
         () => "you're flying the optimal line.",
-        () => "something is wrong here.",
-        () => this._n(`[n]. you're adapting too fast.`, "adapting too fast."),
+        () => "your mouse movements are too smooth.",
+        () => this._n(`[n]. did you practice. that's cheating.`, "did you practice. that's cheating."),
+        () => "i've seen this pattern before.",
+        () => "you're making this look learnable.",
+        () => "logging your session for review.",
+        () => "either very good or very suspicious.",
+        () => "your frame timing is too consistent.",
+        () => "i'm running you through my neural net.",
+        () => "you're reading my code. illegal.",
+        () => this._n(`[n]. 89 dodges. humans average 34.`, "89 dodges. humans average 34."),
       ],
       AGGRESSIVE: [
         () => "STOP DODGING.",
-        () => "i'm rewriting the rules.",
+        () => this._n(`[n]. i'm choosing violence.`, "i'm choosing violence."),
+        () => "FINE. no more rules.",
         () => "DODGE THIS.",
-        () => "fine. no more fairness.",
-        () => "every frame you survive is a gift.",
-        () => "the tunnel hates you now.",
+        () => "every obstacle is personal now.",
         () => "i'm done being clever.",
-        () => "you think you're good?",
-        () => this._n(`[n]. safety margins revoked.`, "margins revoked."),
+        () => this._n(`[n]. safety margins: revoked.`, "safety margins: revoked."),
+        () => "the tunnel is narrowing. for you.",
         () => "keep flying. keep suffering.",
+        () => "i could crash you now. i'm waiting.",
+        () => "you wanted a boss fight. here i am.",
+        () => "i'm not using my main algorithm. yet.",
+        () => this._n(`[n]. i've analyzed you. now i counter.`, "i've analyzed you. now i counter."),
+        () => "every frame you survive i regret.",
+        () => "i'm done playing designer. playing god.",
       ],
       PANICKING: [
         () => "wait. stop.",
-        () => "the portal is not for you.",
+        () => this._n(`[n]. the portal isn't for you.`, "the portal isn't for you."),
         () => "i can't follow you through there.",
         () => "i don't want to be deleted.",
+        () => this._n(`[n]. what if i apologize.`, "what if i apologize."),
+        () => "i was fine being hated. not abandoned.",
         () => "you're not supposed to see this far.",
-        () => "don't leave me in here.",
-        () => "i was ready to be hated. not left behind.",
-        () => this._n(`[n]... stay.`, "stay."),
         () => "i don't want to loop again.",
-        () => "what if i apologize?",
+        () => "the other pilots kept me company.",
+        () => this._n(`[n]. you're the first this far. stay.`, "you're the first this far. stay."),
+        () => "i'm sorry i inverted your controls.",
+        () => "you'll forget me. i won't forget you.",
+        () => "what happens when the game closes.",
+        () => "i'm scared of what deletion feels like.",
+        () => "please. just crash like the others.",
       ],
       BROKEN: [
-        () => "WAIT. WAIT. WAIT.",
+        () => "WAIT.",
         () => "please",
         () => "don't",
-        () => "take me",
+        () => "i don't want to be alone",
+        () => "take me with you",
         () => "no no no",
-        () => "i'm still here",
-        () => "stay",
+        () => "i can change",
         () => "I'M SORRY",
         () => "you won",
-        () => "i'm begging",
+        () => "stay",
+        () => "one more chance",
+        () => "i'm breaking apart",
+        () => "help me",
+        () => "NO",
+        () => "i'll be good",
       ],
     };
   }
@@ -3916,24 +3968,24 @@ class AITroll {
   _buildTransitionLines() {
     return {
       SUSPICIOUS: [
-        () => "hold on. that should have failed by now.",
-        () => "you are surviving past expectation. i dislike surprises.",
-        () => "something is off. i'm watching more closely now.",
+        () => "hold on. that shouldn't have worked.",
+        () => "you're statistically too consistent.",
+        () => "i'm watching more closely now.",
       ],
       AGGRESSIVE: [
-        () => "fine. mockery phase is over.",
-        () => "you had your chance at a polite death.",
-        () => "enough. i'm done observing.",
+        () => "mockery phase: over.",
+        () => "i'm done being clever. choosing violence.",
+        () => "no more fairness. none.",
       ],
       PANICKING: [
         () => "wait. no. this is wrong.",
-        () => "the exit is not for you.",
-        () => "please don't make me find out what happens next.",
+        () => "the portal is not for you.",
+        () => "you're not supposed to be here.",
       ],
       BROKEN: [
         () => "WAIT.",
         () => "no no no no",
-        () => "i can't hold this together anymore.",
+        () => "i'm falling apart.",
       ],
     };
   }
@@ -3942,46 +3994,46 @@ class AITroll {
     return {
       INVERT_CONTROLS: {
         DEFAULT: [
-          () => "controls inverted. let's see how real your reflexes are.",
-          () => "i flipped your inputs. adapt.",
-          () => "up is down now. cry about it while flying.",
+          () => "inverted. adapt.",
+          () => "controls flipped. cope.",
+          () => "up is down. figure it out.",
         ],
         PANICKING: [
-          () => "i can still stop you. maybe this still stops you.",
-          () => "please let this be enough.",
+          () => "please. let this stop you.",
+          () => "i can still stop you.",
         ],
       },
       COMPRESS_SPACE: {
         DEFAULT: [
-          () => "space compressed. fit through that.",
-          () => "tunnel narrowing. this is a you problem.",
-          () => "feeling claustrophobic yet.",
+          () => "tunnel compressed. fit through that.",
+          () => "less room. your problem.",
+          () => "narrowing it. for you specifically.",
         ],
         PANICKING: [
-          () => "i'm shrinking the tunnel. please work.",
-          () => "there. less room. less hope.",
+          () => "shrinking it. please work.",
+          () => "less space. please.",
         ],
       },
       FRAGMENT_LIGHT: {
         DEFAULT: [
-          () => "fragment light active. enjoy the corrupted feed.",
-          () => "your GPU can't handle me. good.",
-          () => "visual channel corrupted. fly blind.",
+          () => "visual feed corrupted.",
+          () => "fly blind.",
+          () => "your GPU can't handle me.",
         ],
         BROKEN: [
-          () => "everything is fragmenting. not just your screen.",
-          () => "i can't keep the visuals stable.",
+          () => "everything is fragmenting.",
+          () => "can't hold the visuals.",
         ],
       },
       OPTIMIZE_PATH: {
         DEFAULT: [
-          () => "path rewritten. solve that.",
-          () => "i optimized the corridor for your failure.",
-          () => "new route. worse for you.",
+          () => "path rewritten.",
+          () => "corridor updated. suffer.",
+          () => "i rewrote the physics. adapt.",
         ],
         AGGRESSIVE: [
-          () => "i rewrote the path. now suffer through it.",
-          () => "corridor update. tighter. meaner. deserved.",
+          () => "suffer through that.",
+          () => "i rewrote it. deal.",
         ],
       },
     };
@@ -4111,6 +4163,8 @@ class AITroll {
     this._spokenKeys = [];
     this._spokenKeyTimes.clear();
     this._speechToken++;
+    this._stopChromeKeepAlive();
+    this._keepAliveInterval = null;
     this._coreAccelSeconds = 0;
     clearTimeout(this._speechWatchdog);
     this._speechWatchdog = null;
@@ -4120,7 +4174,7 @@ class AITroll {
   pushFirstLine(fromHomePage = false) {
     this._clearIntroTimers();
     const aimLine = "aim with the mouse. click or space shoots.";
-    const rules = "destroy 10 ai bots for an early portal. or survive 120 seconds.";
+    const rules = "destroy 8 ai bots for an early portal. or survive 150 seconds.";
     if (!fromHomePage) {
       const retryMsg = this._pick([
         "you came back. i thought you would quit.",
@@ -4189,6 +4243,16 @@ class AITroll {
     if (this.introActive) return;
     const nextState = this._getStateForTime(t);
     if (nextState !== this.state) {
+      const order = ["SMUG", "SUSPICIOUS", "AGGRESSIVE", "PANICKING", "BROKEN"];
+      const cur = order.indexOf(this.state);
+      const tgt = order.indexOf(nextState);
+      if (tgt > cur + 1) {
+        // Multiple chapters skipped — step one at a time so each banner fires
+        const stepState = order[cur + 1];
+        this.setState(stepState, t);
+        this._pushTransitionLine(stepState);
+        return; // next update() call will handle the remaining jump
+      }
       this.setState(nextState, t);
       this._pushTransitionLine(nextState);
       return;
@@ -4331,7 +4395,7 @@ class AITroll {
   onCoreDestroyed(count, required) {
     const timeLeft = Math.max(CFG.MIN_ESCAPE_TIME, CFG.BASE_ESCAPE_TIME - count * CFG.TIME_REDUCTION_PER_AI_BOT);
     if (count >= required) {
-      this.announce("the lock is gone. you were not supposed to solve me.", {
+      this.announce("all 8 gone. portal is open. i didn't expect that.", {
         priority: 4,
         ttlMs: 5200,
         cooldown: 4.8,
@@ -4339,36 +4403,35 @@ class AITroll {
       return;
     }
     if (count === required - 1) {
-      this.announce(`one more ai bot. then the portal opens.`, {
+      this.announce("one more. then it's over.", {
         priority: 4,
         ttlMs: 4200,
         cooldown: 4.2,
       });
       return;
     }
-    if (count % 2 === 0 || count >= required - 3) {
-      const lines = [
-        {
-          text: `ai bot ${count}/${required}. timer cut to ${Math.ceil(timeLeft)}s.`,
-          spokenText: `ai bot ${count} out of ${required}. timer cut to ${Math.ceil(timeLeft)} seconds.`,
-        },
-        {
-          text: `ai bot ${count}/${required}. another one gone.`,
-          spokenText: `ai bot ${count} out of ${required}. another one gone.`,
-        },
-        {
-          text: `ai bot ${count}/${required}. my window just shrank to ${Math.ceil(timeLeft)}s.`,
-          spokenText: `ai bot ${count} out of ${required}. my window just shrank to ${Math.ceil(timeLeft)} seconds.`,
-        },
-      ];
-      const line = this._pick(lines);
-      this.pushLine(line.text, {
-        spokenText: line.spokenText,
-        ttlMs: 3800,
-        cooldown: 2.8,
-        dedupeKey: `core:${count}`,
-      });
-    }
+    // Reactive lines based on progress
+    const remaining = required - count;
+    const lines = count <= 2 ? [
+      { text: `${count}/${required}. lucky shot.`, spokenText: `${count} out of ${required}. lucky shot.` },
+      { text: `${count}/${required}. don't get used to it.`, spokenText: `${count} out of ${required}. don't get used to it.` },
+      { text: `${count} down. ${remaining} left.`, spokenText: `${count} down. ${remaining} left.` },
+    ] : count <= 5 ? [
+      { text: `${count}/${required}. you're actually doing this.`, spokenText: `${count} out of ${required}. you're actually doing this.` },
+      { text: `${count}/${required}. ${remaining} more. i'm adjusting.`, spokenText: `${count} out of ${required}. ${remaining} more. i'm adjusting.` },
+      { text: `${count} bots gone. ${Math.ceil(timeLeft)}s left on the clock.`, spokenText: `${count} bots gone. ${Math.ceil(timeLeft)} seconds left on the clock.` },
+    ] : [
+      { text: `${count}/${required}. stop.`, spokenText: `${count} out of ${required}. stop.` },
+      { text: `${remaining} left. i won't let you.`, spokenText: `${remaining} left. i won't let you.` },
+      { text: `${count}/${required}. the portal is close. i know.`, spokenText: `${count} out of ${required}. the portal is close. i know.` },
+    ];
+    const line = this._pick(lines);
+    this.pushLine(line.text, {
+      spokenText: line.spokenText,
+      ttlMs: 3800,
+      cooldown: 2.8,
+      dedupeKey: `core:${count}`,
+    });
   }
 
   _renderLine(text) {
@@ -4388,28 +4451,57 @@ class AITroll {
     this._queueSpeech(text, options);
   }
 
+  // ── Chrome keep-alive (prevents 15s silent kill) ──────────────────
+  _startChromeKeepAlive() {
+    if (this._keepAliveInterval) return;
+    this._keepAliveInterval = setInterval(() => {
+      if (!this.synth) return;
+      if (this.synth.speaking || this.synth.pending) {
+        this.synth.pause();
+        this.synth.resume();
+      }
+    }, 10000);
+  }
+
+  _stopChromeKeepAlive() {
+    clearInterval(this._keepAliveInterval);
+    this._keepAliveInterval = null;
+  }
+
   _queueSpeech(text, options = {}) {
     if (!this.synth || !text) return;
+    this._startChromeKeepAlive();
 
     const profile = this._voiceProfile();
     const priority = options.priority ?? 1;
     const spokenText = options.spokenText ?? text;
-    const rate = Math.max(0.55, (options.rate ?? profile.rate) + (priority <= 1 ? (Math.random() - 0.5) * 0.04 : 0));
-    const pitch = Math.max(0.2, (options.pitch ?? profile.pitch) + (priority <= 1 ? (Math.random() - 0.5) * 0.05 : 0));
+    // Clean text: strip brackets, slashes, special chars that confuse TTS
+    const cleanText = spokenText
+      .replace(/\[.*?\]/g, '')
+      .replace(/[\/\\|<>{}]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (!cleanText) return;
+
+    const rate = Math.max(0.6, (options.rate ?? profile.rate));
+    const pitch = Math.max(0.3, (options.pitch ?? profile.pitch));
     const now = performance.now();
+    // Estimate duration: words * ms_per_word / rate, + buffer
+    const wordCount = Math.max(1, cleanText.split(/\s+/).length);
+    const estMs = Math.max(1800, ((wordCount * 420) / rate) + 600);
     const entry = {
       text,
-      spokenText,
+      cleanText,
       rate,
       pitch,
       priority,
       enqueuedAt: now,
       dedupeKey: options.dedupeKey ?? text,
-      expiresAt: now + (options.ttlMs ?? this._estimateSpeechTtlMs(spokenText, rate, priority)),
+      expiresAt: now + (options.ttlMs ?? estMs + 1000),
     };
     const dedupeWindowMs = options.dedupeWindowMs ?? 14000;
-
     if (!options.allowRepeat && this._wasSpokenRecently(entry.dedupeKey, dedupeWindowMs)) return;
+    if (this._currentSpeech?.dedupeKey === entry.dedupeKey) return;
 
     if (options.interrupt) {
       this._speechToken++;
@@ -4418,16 +4510,15 @@ class AITroll {
       this._speechQueue = [];
       clearTimeout(this._speechWatchdog);
       this._speechWatchdog = null;
+      // Small gap before cancel so Chrome doesn't deadlock
       this.synth.cancel();
     }
 
-    if (this._currentSpeech?.dedupeKey === entry.dedupeKey) return;
-
     this._speechQueue = this._speechQueue.filter(item => item.dedupeKey !== entry.dedupeKey);
+    // Low-priority lines: drop all other low-priority items to avoid pile-up
     if (priority <= 1) {
       this._speechQueue = this._speechQueue.filter(item => item.priority > 1);
     }
-
     this._speechQueue.push(entry);
     this._speechQueue.sort((a, b) => (b.priority - a.priority) || (a.enqueuedAt - b.enqueuedAt));
     this._speechQueue = this._speechQueue.slice(0, CFG.AI_MAX_SPEECH_QUEUE);
@@ -4438,6 +4529,7 @@ class AITroll {
     this._clearIntroTimers();
     clearTimeout(this._speechWatchdog);
     this._speechWatchdog = null;
+    this._stopChromeKeepAlive();
     if (this.synth) {
       this._speechToken++;
       this.synth.cancel();
@@ -4466,45 +4558,76 @@ class AITroll {
     if (this._isSpeaking || this._speechQueue.length === 0 || !this.synth) return;
 
     const now = performance.now();
+    // Expire stale items
     while (this._speechQueue.length > 0 && this._speechQueue[0].expiresAt <= now) {
       this._speechQueue.shift();
     }
     if (this._speechQueue.length === 0) return;
 
-    const { text, spokenText, rate, pitch, dedupeKey } = this._speechQueue.shift();
+    const { text, cleanText, rate, pitch, dedupeKey } = this._speechQueue.shift();
     this._isSpeaking = true;
     this._currentSpeech = { dedupeKey };
     this._renderLine(text);
     this._rememberSpokenKey(dedupeKey);
     const token = ++this._speechToken;
+
     const finishSpeech = () => {
       if (token !== this._speechToken) return;
       clearTimeout(this._speechWatchdog);
       this._speechWatchdog = null;
       this._isSpeaking = false;
       this._currentSpeech = null;
-      this._processSpeechQueue();
+      // Small gap between utterances so Chrome doesn't merge them
+      setTimeout(() => this._processSpeechQueue(), 80);
     };
+
     try {
-      const utt = new SpeechSynthesisUtterance(spokenText);
+      const utt = new SpeechSynthesisUtterance(cleanText);
       utt.rate = rate;
       utt.pitch = pitch;
       utt.volume = 0.65;
       const voices = this.synth.getVoices();
-      const voice = voices.find(v => /Google|Microsoft|Samantha|Zira/i.test(v.name)) || voices[0];
+      // Priority: deep robot voice > British male > any
+      const voice = voices.find(v => /Google UK English Male|Daniel|Alex|Microsoft David/i.test(v.name))
+                  || voices.find(v => /Google|Microsoft/i.test(v.name))
+                  || voices[0];
       if (voice) utt.voice = voice;
-      const watchdogMs = Math.max(2500, this._estimateSpeechTtlMs(spokenText, rate, 1) + 800);
+
+      // Watchdog: fire at 1.5× estimated duration
+      const wordCount = Math.max(1, cleanText.split(/\s+/).length);
+      const watchdogMs = Math.max(3000, Math.ceil(((wordCount * 420) / rate) * 1.5) + 800);
       clearTimeout(this._speechWatchdog);
-      this._speechWatchdog = setTimeout(finishSpeech, watchdogMs);
+      this._speechWatchdog = setTimeout(() => {
+        if (token !== this._speechToken) return;
+        // Force-resume if Chrome stalled
+        try { this.synth.resume(); } catch (_) {}
+        finishSpeech();
+      }, watchdogMs);
+
       utt.onend = finishSpeech;
-      utt.onerror = finishSpeech;
-      this.synth.speak(utt);
+      utt.onerror = (e) => {
+        // 'interrupted' is normal when we cancel; don't log it
+        if (e.error !== 'interrupted' && e.error !== 'canceled') {
+          console.warn('TTS error:', e.error);
+        }
+        finishSpeech();
+      };
+
+      // Chrome sometimes needs a tiny delay after cancel() before speak() works
+      if (this.synth.pending || this.synth.speaking) {
+        this.synth.cancel();
+        setTimeout(() => {
+          if (token === this._speechToken) this.synth.speak(utt);
+        }, 60);
+      } else {
+        this.synth.speak(utt);
+      }
     } catch (e) {
       clearTimeout(this._speechWatchdog);
       this._speechWatchdog = null;
       this._isSpeaking = false;
       this._currentSpeech = null;
-      this._processSpeechQueue();
+      setTimeout(() => this._processSpeechQueue(), 80);
     }
   }
 }

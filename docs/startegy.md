@@ -43,7 +43,7 @@ The result: players either die frustrated without experiencing the narrative, OR
 const CFG = {
   // CHANGE THESE:
   BASE_ESCAPE_TIME: 120, // was 180 — 2 minutes, not 3. Tighter = more intense.
-  TIME_REDUCTION_PER_AI_BOT: 8, // was 10 — each core shaves 8s (not 10)
+  TIME_REDUCTION_PER_AI_BOT: 5, // was 10 — each core shaves 5s (not 10)
   AI_BOTS_FOR_INSTANT_WIN: 15, // was 10 — requires more engagement to instant-win
   MIN_ESCAPE_TIME: 60, // was 80 — minimum possible with all cores = 60s
 
@@ -245,7 +245,7 @@ INVULN_TIME: 0.9,         // was 1.1 — slightly shorter invulnerability window
 const CFG = {
   // Win condition
   BASE_ESCAPE_TIME: 120,
-  TIME_REDUCTION_PER_AI_BOT: 8,
+  TIME_REDUCTION_PER_AI_BOT: 5,
   AI_BOTS_FOR_INSTANT_WIN: 15,
   MIN_ESCAPE_TIME: 60,
 
