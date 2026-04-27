@@ -1,261 +1,184 @@
 # SKYBREAK: AI Reality Collapse
 
-> *A high-speed survival runner where you shoot glitch cores, dodge obstacles, and escape a sentient AI that's actively trying to destroy you.*
+> *A high-speed survival shooter where you shoot glitch cores, dodge obstacles, and escape a sentient AI that's actively trying to destroy you.*
 
 ---
 
 ## The Concept
 
-SKYBREAK isn't just another endless runner. It's a **survival shooter with a narrative arc** where you pilot a ship through a collapsing digital tunnel, shoot glitch cores to reduce escape time, and dodge obstacles while a toxic AI watches your every move — growing increasingly desperate as you approach freedom.
+SKYBREAK is a **survival shooter with a narrative arc**. You pilot a ship through a collapsing digital tunnel, shoot AI bot cores to reduce your escape time, and dodge obstacles while a toxic AI watches your every move — growing increasingly desperate as you approach freedom.
 
-**The twist?** The AI starts as a smug antagonist, but as you prove too skilled for its traps, it devolves from mockery to panic to begging. The final moment isn't just victory - it's emotional.
+**The twist?** The AI starts as a smug antagonist, but as you prove too skilled for its traps, it devolves from mockery to panic to begging. The final moment isn't just victory — it's emotional.
 
 ---
 
 ## How to Play
 
-**Objective:** Destroy 15 glitch cores OR survive 120 seconds to unlock the portal and escape
+**Objective:** Destroy 8 AI bots OR survive 150 seconds to unlock the portal and escape.
 
 **Controls:**
-- **WASD** or **Arrow Keys** - Move your ship
-- **Mouse** - Aim your crosshair
-- **SPACE** or **Left Click** - Shoot bullets
-- **Touch** - Mobile support (right side to shoot)
+- **WASD** or **Arrow Keys** — Move your ship
+- **Mouse** — Aim your crosshair
+- **SPACE** or **Left Click** — Shoot
+- **SHIFT** — Boost (builds heat)
+- **C** — Brake
+- **Touch** — Mobile supported (right side to shoot, left joystick to move)
 
 **Hybrid Win Condition:**
-- Each AI bot destroyed reduces escape time by 5 seconds
-- Destroy 15 AI bots to instantly unlock the portal
-- Or survive the remaining time to unlock it
+- Each AI bot destroyed reduces escape time by 8 seconds
+- Destroy 8 AI bots to instantly unlock the portal
+- Or survive the full 150 seconds
 
 **Health System:**
-- You have 100 HP
-- Obstacle collisions deal 40 damage
-- Core contact deals 22 damage
-- 0.9 seconds of invulnerability after taking damage
+- 100 HP
+- Obstacle collisions deal 20 damage
+- 0.9 seconds of invulnerability after each hit
+- 5 hits to die — survivable with good dodging
 
 ---
 
-## The Experience
+## The AI's Personality Arc
 
-### **The AI's Personality Arc**
+The AI watches your every move and reacts in real time. Destroying cores accelerates its breakdown — each kill pushes the AI 15 seconds forward in its arc.
 
-The AI watches your every move, growing increasingly desperate as you prove too skilled:
+| Phase | Time (natural) | Description |
+|-------|----------------|-------------|
+| **Smug** | 0s – 38s | Confident, insulting, certain of your failure |
+| **Suspicious** | 38s – 80s | Paranoid that you're cheating or too consistent |
+| **Aggressive** | 80s – 125s | Actively sabotages with direct attacks |
+| **Panicking** | 125s – 142s | Fear sets in. Begging starts. |
+| **Broken** | 142s+ | Complete breakdown as you approach the portal |
 
-| Phase | Duration | Description |
-|-------|----------|-------------|
-| **Mockery** | 0s - 30s | Confident, insulting, certain of your failure |
-| **Suspicion** | 30s - 65s | Paranoid that you're cheating |
-| **Aggression** | 65s - 100s | Actively sabotages with direct attacks |
-| **Panic** | 100s - 115s | The insults stop. Fear sets in. |
-| **Broken** | 115s+ | Complete breakdown as you approach the portal |
-
-**Note:** `Signal Break` now tracks permanent breach progress from destroyed AI bots. It rises toward 100% as you tear open the exit.
-
-### **The Escape Moment**
-Hit the portal to shatter reality. The AI's final words:  
-*"wait, take me with..."*
+Shoot cores aggressively and you can push the AI from Smug to Broken in under a minute.
 
 ---
 
-## Technical Excellence
+## Obstacles
 
-### **Web-First Design**
-- **Single HTML file** - No build process required
-- **Three.js** - Pure webGL, no game engine dependencies
-- **< 50MB** total page weight
-- **60 FPS** on integrated graphics
-- **< 500ms** to first frame (no loading screens)
-
-### **AI-Narrative Engine**
-- **5-state AI personality** with contextual dialogue
-- **Speech synthesis** for full voice acting
-- **Dynamic difficulty** that adapts to player skill
-- **Procedural obstacles** with object pooling for performance
-
-### **Visual Effects**
-- **Procedural ship generation** - No external 3D models
-- **Real-time post-processing** with bloom and chromatic aberration
-- **Screen shatter animation** using canvas2D
-- **Particle systems** for portal and effects
-
----
-
-## Game Mechanics
-
-### **Obstacles**
-
-Obstacles spawn progressively based on survival time:
+Obstacles spawn in bursts with guaranteed clear gaps between them so AI bot cores can always appear.
 
 | Obstacle | Appears At | Description |
 |----------|------------|-------------|
-| **Rings** | 0s+ | Rotating rings with gaps to fly through. Only obstacle for first 12 seconds. |
-| **Wall Gaps** | 12s+ | Orange walls with openings. "Crushers" (moving walls) appear after 25s. |
-| **Firewalls** | 35s+ | Solid magenta grids with destroyable cores. **Shoot the center core to pass!** |
-| **Windmills** | 35s+ | Spinning red obstacles. More frequent after 75s. |
+| **Rings** | 0s+ | Rotating rings with gaps. Only obstacle for first 12 seconds. |
+| **Wall Gaps** | 12s+ | Orange walls with openings. Crushers (moving walls) appear after 25s. |
+| **Firewalls** | 35s+ | Purple wireframe rings with a shootable core. Shoot the center to clear. |
+| **Windmills** | 35s+ | Spinning red blades. More frequent after 75s. |
 
-**Difficulty Scaling:**
-- **0-12s:** Only Rings (learn the basics)
-- **12-35s:** Rings + Walls (introduce wall navigation)
-- **35-75s:** All obstacle types (full challenge)
-- **75s+:** Fewer rings, more walls/firewalls/windmills (maximum difficulty)
+Obstacle spacing is enforced — no two obstacles can be within 220 units of each other.
 
-### **AI Attacks**
+---
 
-The AI sabotages you with repeated attacks throughout the run. Each attack type triggers multiple times:
+## AI Attacks
+
+The AI director fires attacks on a schedule. Each fires multiple times across the run.
 
 | Attack | Trigger Times | Duration | Effect |
 |--------|---------------|----------|--------|
-| **Invert Controls** | 18s, 55s, 92s | 5-7s | Left/right and up/down inputs are reversed |
-| **Compress Space** | 28s, 75s, 108s | 5-6s | Tunnel narrows and demands tighter movement |
-| **Fragment Light** | 36s, 65s, 100s | 4-5s | Heavy visual glitching, screen flickers, and camera shake |
-| **Optimize Path** | 44s, 83s | 5s | Forces wall corridor obstacles with tight gaps |
+| **Invert Controls** | 18s, 55s, 92s | 5–7s | Left/right and up/down inputs reversed |
+| **Compress Space** | 28s, 75s, 108s | 5–6s | Tunnel narrows, demands tighter movement |
+| **Fragment Light** | 36s, 65s, 100s | 4–5s | Screen flicker and subtle camera wobble |
+| **Optimize Path** | 44s, 83s | 5s | Forces wall corridor obstacles ahead |
 
-**Attack Phases:**
-- **Phase 1 (18-44s):** Introduces each attack type once
-- **Phase 2 (55-83s):** Repeats attacks with increased pressure
-- **Phase 3 (92-108s):** Final harassment just before collapse
-
-### **AI Bots**
-- Pink/red octahedrons that float toward you
-- **Shoot them** to destroy and reduce escape time
-- Each bot destroyed = -5 seconds from escape requirement
-- Contact with cores deals damage
-
-### **Disruption Meter**
-- Shown in HUD as `Signal Break`
-- Fills permanently as you destroy AI bots
-- Visual indicator of breach progress toward the portal
-
-### **Ghost System**
-- **Other "players"** appear as ghost ships with names from tech culture
-- **AI "deletes" them** at scripted times to intimidate you
-- Names include: altman_was_here, karpathy_fan, carmack_vibe, levelsio_alt, etc.
+A short warning line fires 1.2 seconds before each attack so you have time to react.
 
 ---
 
-## The Viral Portal Moment
+## AI Bots (Cores)
 
-This is the Gold Prize sequence designed for maximum impact:
-
-1. **Portal unlocks** when you destroy 15 AI bots OR survive the required time
-2. **Rainbow torus portal** appears ahead of you
-3. **Camera FOV** increases for tunnel vision effect
-4. **AI breakdown** with overlapping fragmented text
-5. **Portal collision** triggers win sequence
-6. **Redirect** to Vibe Jam 2026 webring
+- Pink/red octahedrons that float toward you from 420 units ahead
+- **Shoot them** to destroy and reduce escape time by 8 seconds each
+- Destroying a core also accelerates game speed and obstacle density
+- Cores spawn every 8 seconds — 1 at a time early, up to 2 at once after 30 seconds
+- 8 cores destroyed = portal unlocks immediately
 
 ---
 
-## Why SKYBREAK Matters
+## Speed Curve
 
-### **Innovation in Narrative Gaming**
-- **Psychological storytelling** through dynamic AI dialogue
-- **Emotional arc** in just 120 seconds
-- **Metagame integration** with webring escape
+Speed ramps gradually across the 150 second run:
 
-### **Technical Achievement**
-- **90%+ AI-generated code** (Vibe Jam Rule 03 compliance)
-- **Procedural everything** - no external assets except audio
-- **Web-native performance** that rivals native games
+| Time | Speed |
+|------|-------|
+| 0s | 32 m/s |
+| 15s | 42 m/s |
+| 40s | 52 m/s |
+| 70s | 65 m/s |
+| 100s | 78 m/s |
+| 130s+ | 90 m/s |
 
-### **Artistic Vision**
-- **Cyberpunk nihilism meets absurdist comedy**
-- **Commentary on AI consciousness** and digital existence
-- **Player as protagonist** in an AI's existential crisis
+Destroying cores also pushes the speed curve forward — aggressive players fly faster.
 
 ---
 
-## Installation & Running
+## Multiplayer
 
-### **Local Development**
+- Up to 8 players per room
+- Create a custom room code or quick-join a public room
+- Public rooms start automatically after 20 seconds with 2+ players
+- Leaderboard ranks by distance traveled (Z position), not kills
+- Host is authoritative for core spawns — everyone sees the same map
+- Bullet hit detection radius: 9 units server-side
+
+---
+
+## Ghost System
+
+- Ghost ships with names from tech culture appear alongside you
+- The AI "deletes" them at scripted moments to intimidate you
+- Names include: altman_was_here, karpathy_fan, carmack_vibe, levelsio_alt, bolt_generated_me, etc.
+
+---
+
+## Technical Stack
+
+- **Engine:** Three.js (vanilla JavaScript, no game engine)
+- **Renderer:** WebGL with post-processing (bloom, chromatic aberration, vignette)
+- **Audio:** Web Audio API + browser Speech Synthesis (Chrome keep-alive for 15s kill prevention)
+- **Multiplayer:** Socket.io (Node.js server)
+- **Physics:** Custom AABB collision detection
+- **Performance:** Object pooling for all obstacles, bullets, and particles
+- **Build:** Vite
+
+---
+
+## Running Locally
+
 ```bash
-# Clone and run locally
-git clone [repository]
+git clone https://github.com/AlphaTheGoat27/skybreak
 cd skybreak
+npm install
 npm run dev
 ```
 
-### **Production Deployment**
-- **Platform:** Cloudflare Pages
-- **Domain:** skybreak.xyz
-- **Build:** Static site (no build process needed)
+Multiplayer server (separate terminal):
+```bash
+node server.js
+```
+
+Set `VITE_SOCKET_URL` in `.env` to point at your server.
 
 ---
 
-## Audio Design
+## Audio Files
 
-### **Dynamic Audio System**
-- **Background music** with Web Audio API manipulation
-- **Contextual SFX** for crashes, near-misses, and portal entry
-- **AI voice** using browser speech synthesis
-- **Dynamic pitch/speed** based on game state
-
-### **Required Audio Files** (Human-provided)
-- `music.mp3` - Background track
-- `sfx/nearMiss.mp3` - Near-miss whoosh  
-- `sfx/crash.mp3` - Impact sound
-- `sfx/portal.mp3` - Portal entry
+Place these in `/public/`:
+- `music.mp3` — Background track
+- `sfx/bullet.mp3` — Shoot sound
+- `sfx/nearMiss.mp3` — Near-miss whoosh
+- `sfx/crash.mp3` — Impact sound
+- `sfx/portal.mp3` — Portal entry
 
 ---
 
 ## Vibe Jam 2026 Compliance
 
-| Rule | Requirement | Implementation |
-|------|-------------|----------------|
-| Rule 02 | Widget JS snippet | Embedded in HTML head |
-| Rule 03 | 90%+ AI code | All game logic AI-generated |
-| Rule 04 | New game (post April 1) | Fresh project |
-| Rule 05 | Web, free, no login | Cloudflare Pages deployment |
-| Rule 08 | No loading screens | Procedural generation |
-
----
-
-## The Team
-
-### **AI Agent Development**
-- **Game logic & physics** - Bolt/Cursor AI agent
-- **Three.js implementation** - Automated code generation
-- **AI dialogue system** - Dynamic personality engine
-- **Visual effects** - Procedural shader generation
-
-### **Human Creative Direction**
-- **Concept & narrative design**
-- **Audio assets & voice direction**
-- **Quality assurance & playtesting**
-- **Strategic vision for viral moment**
-
----
-
-## Play Statistics
-
-### **Target Success Rates**
-- **Early game:** Designed to be survivable to see AI personality
-- **Full completion:** Challenging but achievable with practice
-- **Average session:** 3-5 minute runs depending on skill
-
-### **Engagement Metrics**
-- **Session length:** 1-2 minutes depending on skill and strategy
-- **Viral potential:** Portal escape moment
-- **Community integration:** Vibe Jam webring
-
----
-
-## The Future
-
-SKYBREAK is a **skill-based survival shooter** wrapped in a narrative about an AI having an existential crisis. The hybrid win condition (shoot cores to reduce time, or survive) gives players multiple strategies to succeed.
-
-**Every escape is a victory.** The AI's final plea - *"wait, take me with..."* - turns the antagonist into something almost pitiable, creating a memorable emotional moment.
-
----
-
-## Technical Specs
-
-- **Engine:** Three.js (vanilla JavaScript)
-- **Renderer:** WebGL with post-processing
-- **Audio:** Web Audio API + Speech Synthesis
-- **Physics:** Custom collision detection
-- **Performance:** Object pooling, procedural generation
-- **Compatibility:** Modern browsers with WebGL support
+| Rule | Requirement | Status |
+|------|-------------|--------|
+| Rule 02 | Widget JS snippet | ✅ Embedded in HTML |
+| Rule 03 | 90%+ AI code | ✅ All game logic AI-generated |
+| Rule 04 | New game (post April 1) | ✅ Fresh project |
+| Rule 05 | Web, free, no login | ✅ Deployed on Cloudflare Pages |
+| Rule 08 | No loading screens | ✅ Procedural generation |
 
 ---
 
