@@ -11,7 +11,7 @@ import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 const CFG = {
   // Hybrid win condition
   BASE_ESCAPE_TIME: 120,
-  TIME_REDUCTION_PER_AI_BOT: 5,
+  TIME_REDUCTION_PER_AI_BOT: 8,
   AI_BOTS_FOR_INSTANT_WIN: 10,
   MIN_ESCAPE_TIME: 60,
 
@@ -23,7 +23,7 @@ const CFG = {
 
   // Shooting
   BULLET_SPEED: 145,
-  BULLET_LIFETIME: 1.5,
+  BULLET_LIFETIME: 2,
   SHOOT_COOLDOWN: 0.28,
   DISRUPTION_GAIN_PER_HIT: 0.09,
 
@@ -225,29 +225,47 @@ app.innerHTML = `
 
   <!-- Step 1: Mode select -->
   <div id="mode-select" class="mode-select">
-    <button id="btn-solo" class="mode-btn mode-btn--solo">
-      <div class="mode-btn-icon">▶</div>
-      <div class="mode-btn-title">SOLO</div>
-      <div class="mode-btn-desc">Face the AI alone · 120s</div>
-    </button>
-    <button id="btn-multi" class="mode-btn mode-btn--multi">
-      <div class="mode-btn-icon">⚔</div>
-      <div class="mode-btn-title">MULTIPLAYER</div>
-      <div class="mode-btn-desc">PvP · room codes · kinetic drift</div>
-    </button>
+    <div class="intro-hint mode-hint">
+      <div class="intro-title">SYSTEM BREACH</div>
+      <div class="intro-narrative">THE AI BUILT THIS WORLD. IT IS COLLAPSING.</div>
+      <div class="intro-narrative">THE AI HAS SELF-REPLICATED — MORE BOTS, HIGHER THREAT.</div>
+      <div class="intro-narrative">SHOOT THE GLOWING AI BOTS TO BREAK THE LOCK EARLY.</div>
+      <div class="intro-narrative accent">REACH THE PORTAL BEFORE THE VOID TAKES YOU.</div>
+      <div class="intro-key">
+        <span>MOUSE MOVE = AIM</span>
+        <span>SPACE / CLICK = SHOOT</span>
+        <span>WASD = MOVE SHIP</span>
+        <span>PINK AI BOT = SHOOT IT</span>
+        <span>PORTAL RING = FLY THROUGH IT</span>
+      </div>
+    </div>
+    <div class="mode-buttons">
+      <button id="btn-solo" class="mode-btn mode-btn--solo">
+        <div class="mode-btn-icon">▶</div>
+        <div class="mode-btn-title">SOLO</div>
+        <div class="mode-btn-desc">Face the AI alone · 120s</div>
+      </button>
+      <button id="btn-multi" class="mode-btn mode-btn--multi">
+        <div class="mode-btn-icon">⚔</div>
+        <div class="mode-btn-title">MULTIPLAYER</div>
+        <div class="mode-btn-desc">PvP · room codes · kinetic drift</div>
+      </button>
+    </div>
   </div>
 
   <!-- Step 2A: Solo form -->
   <div id="intro-hint" class="intro-hint" style="display:none">
     <div class="intro-title">SYSTEM BREACH</div>
-    <div class="intro-narrative">SHOOT THE AI BOTS. REACH THE PORTAL.</div>
-    <div class="intro-narrative accent">THE AI WILL TRY TO STOP YOU.</div>
+    <div class="intro-narrative">THE AI BUILT THIS WORLD. IT IS COLLAPSING.</div>
+    <div class="intro-narrative">THE AI HAS SELF-REPLICATED — MORE BOTS, HIGHER THREAT.</div>
+    <div class="intro-narrative">SHOOT THE GLOWING AI BOTS TO BREAK THE LOCK EARLY.</div>
+    <div class="intro-narrative accent">REACH THE PORTAL BEFORE THE VOID TAKES YOU.</div>
     <div class="intro-key" id="intro-key-row">
-      <span>WASD = MOVE</span>
-      <span>MOUSE = AIM</span>
-      <span>SPACE = SHOOT</span>
-      <span>SHIFT = BOOST</span>
-      <span>C = BRAKE</span>
+      <span>MOUSE MOVE = AIM</span>
+      <span>SPACE / CLICK = SHOOT</span>
+      <span>WASD = MOVE SHIP</span>
+      <span>PINK AI BOT = SHOOT IT</span>
+      <span>PORTAL RING = FLY THROUGH IT</span>
     </div>
   </div>
   <form id="intro-form" class="intro-form" style="display:none">
@@ -255,7 +273,7 @@ app.innerHTML = `
       placeholder="enter pilot name... or leave blank" maxlength="16"
       autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false">
     <button type="submit" class="intro-button">ENTER THE VOID</button>
-    <button type="button" id="btn-back-solo" style="background:none;border:none;color:rgba(0,255,255,0.35);font-family:var(--mono);font-size:0.7rem;letter-spacing:0.1em;cursor:pointer;margin-top:-0.3rem;">← BACK</button>
+    <button type="button" id="btn-back-solo" class="back-btn">← BACK</button>
   </form>
 
   <!-- Step 2B: Multiplayer setup -->
@@ -281,7 +299,7 @@ app.innerHTML = `
       </button>
     </div>
     <div id="mp-status" style="font-size:0.72rem;letter-spacing:0.12em;color:rgba(0,255,255,0.45);text-align:center;min-height:1.4em;"></div>
-    <button id="btn-back-mp" style="background:none;border:none;color:rgba(0,255,255,0.35);font-family:var(--mono);font-size:0.7rem;letter-spacing:0.1em;cursor:pointer;">← BACK</button>
+    <button id="btn-back-mp" class="back-btn">← BACK</button>
   </div>
 
   <!-- Step 3: Lobby -->
@@ -533,7 +551,7 @@ GLOBAL_STATS.bestRun = Math.max(GLOBAL_STATS.bestRun, storedBest);
 
 // Typewriter intro
 let typeInterval = null;
-const INTRO_TEXT = "SYSTEM BREACH DETECTED // SELECT MODE";
+const INTRO_TEXT = "[SYSTEM_ID] > select mode";
 let typeIdx = 0;
 const originalTypeTimer = setInterval(() => {
   G.introLabel.classList.add("is-typing");
@@ -573,6 +591,8 @@ function flashWhite(opacity = 0.08, durationMs = 70) {
 function showChapterBanner(text, color = "#00ffff", durationMs = 2400) {
   if (!G.chapterBanner) return;
   clearTimeout(chapterBannerTimer);
+  clearTimeout(invertOverlayTimer);
+  G.invertOverlay?.classList.remove("is-visible");
   G.chapterBanner.textContent = text;
   G.chapterBanner.style.color = color;
   G.chapterBanner.classList.add("is-visible");
@@ -592,6 +612,8 @@ function queueOpeningTutorialWaves() {
 function showInvertOverlay(durationMs = 800) {
   if (!G.invertOverlay) return;
   clearTimeout(invertOverlayTimer);
+  clearTimeout(chapterBannerTimer);
+  G.chapterBanner?.classList.remove("is-visible");
   G.invertOverlay.classList.add("is-visible");
   invertOverlayTimer = setTimeout(() => {
     G.invertOverlay.classList.remove("is-visible");
@@ -739,7 +761,7 @@ if (G.btnSolo) {
         ? "<span>LEFT = MOVE</span><span>RIGHT = SHOOT</span><span>⚡ BOOST BTN</span><span>⚓ BRAKE BTN</span>"
         : "<span>WASD = MOVE</span><span>MOUSE = AIM</span><span>SPACE = SHOOT</span><span>SHIFT = BOOST</span><span>C = BRAKE</span>";
     }
-    runTypewriter("identify yourself. or don't. i'll find out anyway.", G.introLabel);
+    runTypewriter("[SYSTEM_ID] > identify yourself. or don't. i'll find out anyway", G.introLabel);
     setTimeout(() => G.introInput?.focus(), 50);
   });
 }
@@ -749,7 +771,7 @@ if (G.btnSoloBack) {
     G.introForm.style.display = "none";
     if (G.btnSoloBack) G.btnSoloBack.style.display = "none";
     G.modeSelect.style.display = "flex";
-    runTypewriter("SYSTEM BREACH DETECTED // SELECT MODE", G.introLabel);
+    runTypewriter("[SYSTEM_ID] > select mode", G.introLabel);
   });
 }
 if (G.btnMulti) {
@@ -769,7 +791,7 @@ if (G.btnMulti) {
     if (G.introKeyRow) {
       G.introKeyRow.innerHTML = "<span>WASD = MOVE</span><span>MOUSE = AIM</span><span>SPACE = SHOOT</span><span>SHIFT = BOOST</span><span>C = BRAKE</span>";
     }
-    runTypewriter("identify yourself. or don't. i'll find out anyway.", G.introLabel);
+    runTypewriter("[SYSTEM_ID] > identify yourself. or don't. i'll find out anyway.", G.introLabel);
     setTimeout(() => G.mpName?.focus(), 50);
     initSocket();
   });
@@ -803,15 +825,15 @@ if (G.btnJoinPublic) {
     socket.emit("join_public", { name: G.mpName?.value.trim(), color: pickMpColor() });
   });
 }
-if (G.btnMpBack) {
-  G.btnMpBack.addEventListener("click", () => {
+if (G.btnBackMp) {
+  G.btnBackMp.addEventListener("click", () => {
     socket?.disconnect();
     socket = null;
     G.mpSetup.style.display = "none";
     G.introHint.style.display = "none";
     G.introForm.style.display = "none";
     G.modeSelect.style.display = "flex";
-    runTypewriter("SYSTEM BREACH DETECTED // SELECT MODE", G.introLabel);
+    runTypewriter("[SYSTEM_ID] > select mode", G.introLabel);
   });
 }
 if (G.btnStartCustom) {
@@ -2192,7 +2214,7 @@ function buildThreeApp(container) {
     if (portalUnlocked) {
       progressText = `PORTAL OPEN | FLY THROUGH THE RING`;
     } else if (cores === 0) {
-      progressText = `AI BOTS 0/${CFG.AI_BOTS_FOR_INSTANT_WIN} | EACH BOT WORTH 5 SECONDS`;
+      progressText = `AI BOTS 0/${CFG.AI_BOTS_FOR_INSTANT_WIN} | EACH BOT WORTH 8 SECONDS`;
     } else if (remaining <= 1) {
       progressText = `AI BOTS ${cores}/${CFG.AI_BOTS_FOR_INSTANT_WIN} | ONE MORE BOT OPENS THE PORTAL`;
     } else {
