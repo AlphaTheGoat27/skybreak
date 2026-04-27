@@ -318,13 +318,13 @@ body {
 /* Crosshair lock-on feedback */
 .crosshair.is-locked::before,
 .crosshair.is-locked::after {
-  background: #ff4488;
-  box-shadow: 0 0 8px #ff4488;
+  background: #ff0000;
+  box-shadow: 0 0 8px #ff0000;
 }
 
 .crosshair.is-locked .crosshair-ring {
-  border-color: #ff4488;
-  box-shadow: 0 0 8px rgba(255,68,136,0.5);
+  border-color: #ff0000;
+  box-shadow: 0 0 8px rgba(255,0,0,0.5);
   transform: scale(1.15);
 }
 
@@ -1089,6 +1089,12 @@ body {
 }
 .github-link a { color: rgba(0,255,255,0.5); text-decoration: none; transition: all 0.25s ease; }
 .github-link a:hover { color: var(--white); text-shadow: var(--glow-cyan); }
+
+/* Hide footer credits when lobby is shown */
+.intro-screen.lobby-active .creator-credit,
+.intro-screen.lobby-active .github-link {
+  display: none;
+}
 
 /* ═══════════════════════════════════════════════════════════════════
    MOBILE SHOOT HINT

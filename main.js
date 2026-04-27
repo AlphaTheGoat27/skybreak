@@ -850,6 +850,7 @@ if (G.btnLobbyCancel) {
     lbTickInterval = null;
     mpMode = false;
     G.mpLobby.style.display = "none";
+    document.querySelector('.intro-screen')?.classList.remove('lobby-active');
     G.mpSetup.style.display = "none";
     G.introHint.style.display = "none";
     G.introForm.style.display = "none";
@@ -861,10 +862,49 @@ if (G.btnLobbyCancel) {
   });
 }
 if (G.roomCopyHint) {
-  G.roomCopyHint.addEventListener("click", () => navigator.clipboard?.writeText(G.roomCodeText?.textContent || ""));
+  G.roomCopyHint.addEventListener("click", () => {
+    copyToClipboard(G.roomCodeText?.textContent || "");
+    const orig = G.roomCopyHint.textContent;
+    G.roomCopyHint.textContent = " · copied!";
+    setTimeout(() => G.roomCopyHint.textContent = orig, 1200);
+  });
+}
+function copyToClipboard(text) {
+  if (!text) return;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).catch(() => fallbackCopy(text));
+  } else {
+    fallbackCopy(text);
+  }
+}
+function fallbackCopy(text) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); } catch (e) { /* ignore */ }
+  document.body.removeChild(ta);
 }
 if (G.lobbyCopyHint) {
-  G.lobbyCopyHint.addEventListener("click", () => navigator.clipboard?.writeText(G.lobbyRoomCode?.textContent || ""));
+  G.lobbyCopyHint.addEventListener("click", (e) => {
+    e.stopPropagation();
+    copyToClipboard(G.lobbyRoomCode?.textContent || "");
+    const orig = G.lobbyCopyHint.textContent;
+    G.lobbyCopyHint.textContent = " · copied!";
+    setTimeout(() => G.lobbyCopyHint.textContent = orig, 1200);
+  });
+}
+if (G.lobbyRoomCode) {
+  G.lobbyRoomCode.parentElement?.addEventListener("click", () => {
+    copyToClipboard(G.lobbyRoomCode?.textContent || "");
+    if (G.lobbyCopyHint) {
+      const orig = G.lobbyCopyHint.textContent;
+      G.lobbyCopyHint.textContent = " · copied!";
+      setTimeout(() => G.lobbyCopyHint.textContent = orig, 1200);
+    }
+  });
 }
 const _urlRoom = new URLSearchParams(location.search).get("room");
 if (_urlRoom && G.btnMulti) {
@@ -947,7 +987,7 @@ function initSocket() {
     amHost = true;
     mpIsHost = true;
     if (G.mpSetup) G.mpSetup.style.display = "none";
-    if (G.mpLobby) G.mpLobby.style.display = "flex";
+    if (G.mpLobby) { G.mpLobby.style.display = "flex"; document.querySelector('.intro-screen')?.classList.add('lobby-active'); }
     if (G.lobbyRoomCode) G.lobbyRoomCode.textContent = code;
     if (G.btnStartCustom) G.btnStartCustom.style.display = "inline-block";
   });
@@ -956,7 +996,7 @@ function initSocket() {
     amHost = true;
     mpIsHost = true;
     if (G.mpSetup) G.mpSetup.style.display = "none";
-    if (G.mpLobby) G.mpLobby.style.display = "flex";
+    if (G.mpLobby) { G.mpLobby.style.display = "flex"; document.querySelector('.intro-screen')?.classList.add('lobby-active'); }
     if (G.lobbyRoomCode) G.lobbyRoomCode.textContent = code;
   });
   socket.on("room_joined", ({ code }) => {
@@ -964,7 +1004,7 @@ function initSocket() {
     amHost = false;
     mpIsHost = false;
     if (G.mpSetup) G.mpSetup.style.display = "none";
-    if (G.mpLobby) G.mpLobby.style.display = "flex";
+    if (G.mpLobby) { G.mpLobby.style.display = "flex"; document.querySelector('.intro-screen')?.classList.add('lobby-active'); }
     if (G.lobbyRoomCode) G.lobbyRoomCode.textContent = code;
     if (G.btnStartCustom) G.btnStartCustom.style.display = "none";
   });
@@ -1413,6 +1453,20 @@ function buildThreeApp(container) {
     exR.position.set(1.2 * scale, 0, 1.9 * scale);
     group.add(exR);
 
+    // Stabilizer
+    const stabGeo = new THREE.BoxGeometry(0.08 * scale, 1.2 * scale, 0.8 * scale);
+    const stabMat = new THREE.MeshBasicMaterial({ color: playerColor });
+    const stab = new THREE.Mesh(stabGeo, stabMat);
+    stab.position.set(0, 0.6 * scale, 0.9 * scale);
+    group.add(stab);
+
+    // Engine glow core
+    const glowGeo = new THREE.SphereGeometry(0.15 * scale, 6, 6);
+    const glowMat = new THREE.MeshBasicMaterial({ color: playerColor });
+    const glow = new THREE.Mesh(glowGeo, glowMat);
+    glow.position.set(0, 0, -0.2 * scale);
+    group.add(glow);
+
     // Name label
     const labelSprite = makeTextSprite(name || "pilot", color);
     labelSprite.position.set(0, 3.5 * scale, 0);
@@ -1667,6 +1721,7 @@ function buildThreeApp(container) {
     let bestCore = null;
     let bestScore = Infinity;
 
+    // Check AI cores
     for (const c of cores) {
       if (!c.active) continue;
 
@@ -1698,6 +1753,42 @@ function buildThreeApp(container) {
       if (score < bestScore) {
         bestScore = score;
         bestCore = c;
+      }
+    }
+
+    // Check other players in multiplayer
+    if (mpMode) {
+      for (const [pid, entry] of otherPlayers) {
+        if (!entry.alive || !entry.mesh) continue;
+        const playerPos = entry.mesh.position.clone();
+        const aheadDistance = from.z - playerPos.z;
+        if (aheadDistance < minAheadDistance || aheadDistance > maxAheadDistance) continue;
+
+        const toPlayerVec = playerPos.clone().sub(from);
+        const dist = toPlayerVec.length();
+        if (dist > maxDist) continue;
+
+        const toPlayer = toPlayerVec.normalize();
+        const angle = baseDir.angleTo(toPlayer);
+        if (angle > LOCK_CONE_RAD) continue;
+
+        const cameraSpace = playerPos.clone().applyMatrix4(camera.matrixWorldInverse);
+        if (cameraSpace.z > -minCameraDepth) continue;
+
+        const projected = playerPos.project(camera);
+        if (projected.z <= -1 || projected.z >= 1) continue;
+        if (Math.abs(projected.x) > frustumX || Math.abs(projected.y) > frustumY) continue;
+
+        const screenX = ((projected.x + 1) * 0.5) * innerWidth;
+        const screenY = ((1 - projected.y) * 0.5) * innerHeight;
+        const cursorDist = Math.hypot(screenX - ptrScreenX, screenY - ptrScreenY);
+        if (cursorDist > LOCK_RADIUS_PX) continue;
+
+        const score = cursorDist + angle * angleWeight + aheadDistance * 0.08;
+        if (score < bestScore) {
+          bestScore = score;
+          bestCore = { mesh: entry.mesh, isPlayer: true };
+        }
       }
     }
 
@@ -1734,6 +1825,7 @@ function buildThreeApp(container) {
     let bestCore = null;
     let bestAngle = SNAP_CONE_RAD;
 
+    // Check AI cores
     for (const c of cores) {
       if (!c.active) continue;
       const toCore = c.mesh.position.clone().sub(from).normalize();
@@ -1744,12 +1836,26 @@ function buildThreeApp(container) {
       }
     }
 
+    // Check other players in multiplayer
+    if (mpMode) {
+      for (const [pid, entry] of otherPlayers) {
+        if (!entry.alive || !entry.mesh) continue;
+        const toPlayer = entry.mesh.position.clone().sub(from).normalize();
+        const angle = baseDir.angleTo(toPlayer);
+        if (angle < bestAngle) {
+          bestAngle = angle;
+          bestCore = { mesh: entry.mesh, isPlayer: true, speed: 0 }; // Players don't have predictable forward motion
+        }
+      }
+    }
+
     if (bestCore) {
       // Lead the target: predict where it will be when bullet arrives
       const dist = bestCore.mesh.position.distanceTo(from);
       const travelTime = dist / CFG.BULLET_SPEED;
+      const speed = bestCore.isPlayer ? 0 : (bestCore.mesh.userData.speed || 0);
       const predicted = bestCore.mesh.position.clone().add(
-        new THREE.Vector3(0, 0, bestCore.mesh.userData.speed * travelTime)
+        new THREE.Vector3(0, 0, speed * travelTime)
       );
       const snapDir = predicted.sub(from).normalize();
       return { target: bestCore, dir: snapDir };
@@ -2036,11 +2142,15 @@ function buildThreeApp(container) {
         bullet.destroy();
         bullets.splice(b, 1);
 
+        // Crosshair hit feedback
+        G.crosshair?.classList.add('hit');
+        setTimeout(() => G.crosshair?.classList.remove('hit'), 150);
+
         // Destroy the core locally
         if (closestCore?.mesh?.userData) {
           const ud = closestCore.mesh.userData;
           destroyCoreById(ud.coreId, true);
-          
+
           // In multiplayer, tell server
           if (mpMode && socket?.connected && ud.mpId) {
             socket.emit("core_destroyed", { id: ud.mpId });
