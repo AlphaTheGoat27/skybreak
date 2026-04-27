@@ -71,14 +71,33 @@ function startSession(code) {
   room.status = "active";
   room.activeCores = new Set();
   room.sessionEnd = Date.now() + SESSION_TIME * 1000;
-  io.to(code).emit("session_started", { sessionEnd: room.sessionEnd });
+  
+  const playerList = Array.from(room.players.values());
+  const spawnOffsets = playerList.map((p, i) => ({
+    id: p.id,
+    x: playerList.length > 1 ? Math.cos((i / playerList.length) * Math.PI * 2) * 6 : 0,
+    y: playerList.length > 1 ? Math.sin((i / playerList.length) * Math.PI * 2) * 3.6 : 0,
+  }));
+  const seed = Math.floor(Math.random() * 0xFFFFFFFF);
+  room.seed = seed;
+  
+  io.to(code).emit("session_started", { 
+    sessionEnd: room.sessionEnd, 
+    seed, 
+    players: playerList.map(p => ({
+      id: p.id, name: p.name, color: p.color, kills: p.kills, deaths: p.deaths, 
+      alive: p.alive, escaped: p.escaped || false, health: p.health ?? 100, 
+      survivalTime: p.survivalTime, z: p.z,
+    })),
+    spawnOffsets 
+  });
   setTimeout(() => endSession(code), SESSION_TIME * 1000);
 }
 function endSession(code) {
   const room = rooms.get(code);
   if (!room || room.status === "ended") return;
   room.status = "ended";
-  const final = Array.from(room.players.values()).sort((a, b) => (b.kills - a.kills) || (b.survivalTime - a.survivalTime));
+  const final = Array.from(room.players.values()).sort((a, b) => (a.z ?? 0) - (b.z ?? 0));
   io.to(code).emit("session_ended", { standings: final });
   setTimeout(() => rooms.delete(code), 300000);
 }
@@ -208,43 +227,43 @@ io.on("connection", (socket) => {
     if (!room || room.status !== "active") return;
     const shooter = room.players.get(socket.id);
     if (!shooter || !shooter.alive) return;
-    if (![x, y, z, dx, dy, dz].every(Number.isFinite)) return;
+if (![x, y, z, dx, dy, dz].every(Number.isFinite)) return;
+
+    // Relay bullet to other players
+    socket.to(roomCode).emit("bullet_fired", { x, y, z, dx, dy, dz, shooterId: socket.id });
 
     const len = Math.hypot(dx, dy, dz) || 1;
     const dir = { x: dx / len, y: dy / len, z: dz / len };
-    const from = { x, y, z };
+    
     let victim = null;
     let bestDist = Infinity;
-    const HIT_RADIUS = 2.4;
 
     for (const [id, p] of room.players) {
       if (id === socket.id || !p.alive) continue;
-      const d = linePointDistance(from, dir, p);
-      if (d < HIT_RADIUS && d < bestDist) {
-        bestDist = d;
+      
+      // Simple 3D distance check
+      const dxPos = p.x - x;
+      const dyPos = p.y - y;
+      const dzPos = p.z - z;
+      const dist3D = Math.sqrt(dxPos*dxPos + dyPos*dyPos + dzPos*dzPos);
+      
+      // Hit if close enough in 3D space (6 units)
+      if (dist3D < 6.0 && dist3D < bestDist) {
+        bestDist = dist3D;
         victim = p;
       }
     }
 
-    if (!victim) return;
-    victim.health = Math.max(0, (victim.health ?? 100) - 10);
-    if (victim.health <= 0) {
-      victim.alive = false;
-      victim.deaths += 1;
-      shooter.kills += 1;
-
-      io.to(roomCode).emit("player_eliminated", {
-        killerId: shooter.id,
-        killerName: shooter.name,
-        victimId: victim.id,
-        victimName: victim.name,
-      });
-      broadcastRoom(roomCode);
-    } else {
+    if (victim) {
+      // Hit! Deal damage to victim
+      victim.health = Math.max(0, (victim.health ?? 100) - 15);
+      
+      // Send hit event with updated health
       io.to(roomCode).emit("player_hit", {
         victimId: victim.id,
         health: victim.health,
         shooterId: shooter.id,
+        damage: 15,
       });
     }
   });
@@ -268,6 +287,34 @@ io.on("connection", (socket) => {
     if (!room.activeCores.has(id)) return;
     room.activeCores.delete(id);
     io.to(roomCode).emit("core_destroyed", { id, by: socket.id });
+  });
+
+  socket.on("portal_unlocked", () => {
+    const roomCode = socket.data.roomCode;
+    if (!roomCode) return;
+    const room = rooms.get(roomCode);
+    if (!room || room.status !== "active") return;
+    if (room.host !== socket.id) return;
+    io.to(roomCode).emit("portal_unlocked", {});
+  });
+
+  socket.on("portal_escape", ({ survivalTime }) => {
+    const roomCode = socket.data.roomCode;
+    if (!roomCode) return;
+    const room = rooms.get(roomCode);
+    if (!room || room.status !== "active") return;
+    const player = room.players.get(socket.id);
+    if (!player) return;
+    
+    player.escaped = true;
+    player.survivalTime = Number.isFinite(survivalTime) ? survivalTime : player.survivalTime;
+    
+    io.to(roomCode).emit("player_escaped", { 
+      id: player.id, 
+      name: player.name, 
+      survivalTime: player.survivalTime 
+    });
+    broadcastRoom(roomCode);
   });
 
   socket.on("disconnect", () => {

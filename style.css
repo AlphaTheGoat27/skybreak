@@ -304,6 +304,17 @@ body {
 .crosshair.shooting::before,
 .crosshair.shooting::after { background: var(--cyan); }
 
+/* Crosshair hit feedback - turns red when hit */
+.crosshair.hit::before,
+.crosshair.hit::after {
+  background: #ff0000 !important;
+  box-shadow: 0 0 12px #ff0000;
+}
+.crosshair.hit .crosshair-ring {
+  border-color: #ff0000 !important;
+  box-shadow: 0 0 12px rgba(255,0,0,0.8);
+}
+
 /* Crosshair lock-on feedback */
 .crosshair.is-locked::before,
 .crosshair.is-locked::after {
@@ -1456,6 +1467,8 @@ body:has(.mp-leaderboard.is-visible) .controls-hud--right {
 .mode-btn--multi:hover { border-color:var(--magenta); box-shadow:var(--glow-magenta); }
 /* ── MP Setup ────────────────────────────────────────────────────── */
 .mp-setup { display:flex; flex-direction:column; gap:1rem; width:min(440px,90vw); }
+.mp-room-buttons { display:flex; gap:0.8rem; flex-wrap:wrap; justify-content:center; }
+.mp-setup .mode-btn { padding:1rem 1.2rem; min-width:130px; }
 /* Kinetic drift hint in MP setup */
 .mp-controls-hint {
   display:flex; flex-wrap:wrap; gap:0.5rem; justify-content:center; align-items:center;

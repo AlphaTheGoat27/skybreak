@@ -255,6 +255,7 @@ app.innerHTML = `
       placeholder="enter pilot name... or leave blank" maxlength="16"
       autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false">
     <button type="submit" class="intro-button">ENTER THE VOID</button>
+    <button type="button" id="btn-back-solo" style="background:none;border:none;color:rgba(0,255,255,0.35);font-family:var(--mono);font-size:0.7rem;letter-spacing:0.1em;cursor:pointer;margin-top:-0.3rem;">← BACK</button>
   </form>
 
   <!-- Step 2B: Multiplayer setup -->
@@ -262,25 +263,25 @@ app.innerHTML = `
     <input id="mp-name" class="intro-input" type="text"
       placeholder="pilot name (optional)" maxlength="16"
       autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false">
-    <div class="mp-controls-hint">
-      <span class="mp-ctrl-tag mp-ctrl-boost">⇧ SHIFT = BOOST</span>
-      <span class="mp-ctrl-tag mp-ctrl-brake">C = BRAKE</span>
-      <span class="mp-ctrl-sub">master the throttle · feather speed in dogfights</span>
+    <div class="mp-room-buttons">
+      <button id="btn-create-room" class="mode-btn" style="min-width:130px; padding:1rem 1.2rem;">
+        <div class="mode-btn-icon" style="font-size:1.4rem;">+</div>
+        <div class="mode-btn-title" style="font-size:0.82rem;">CREATE ROOM</div>
+        <div class="mode-btn-desc">Custom code</div>
+      </button>
+      <button id="btn-join-room" class="mode-btn" style="min-width:130px; padding:1rem 1.2rem;">
+        <div class="mode-btn-icon" style="font-size:1.4rem;">→</div>
+        <div class="mode-btn-title" style="font-size:0.82rem;">JOIN ROOM</div>
+        <div class="mode-btn-desc">Enter code</div>
+      </button>
+      <button id="btn-public" class="mode-btn mode-btn--multi" style="min-width:130px; padding:1rem 1.2rem;">
+        <div class="mode-btn-icon" style="font-size:1.4rem;">⚡</div>
+        <div class="mode-btn-title" style="font-size:0.82rem;">PUBLIC</div>
+        <div class="mode-btn-desc">Auto-match</div>
+      </button>
     </div>
-    <div class="room-section">
-      <div class="room-row">
-        <input id="room-code-input" class="room-code-input" type="text"
-          placeholder="ENTER CODE" maxlength="6"
-          autocomplete="off" autocapitalize="characters" spellcheck="false">
-        <span class="room-or">OR</span>
-        <button id="btn-create-room" class="room-create-btn">CREATE ROOM</button>
-      </div>
-      <div id="room-display" class="room-display" style="display:none">
-        ROOM: <strong id="room-code-text" class="room-code-big"></strong>
-        <span id="room-copy-hint" class="room-copy-hint"> · click to copy</span>
-      </div>
-    </div>
-    <button id="btn-mp-join" class="intro-button" style="display:none">JOIN LOBBY</button>
+    <div id="mp-status" style="font-size:0.72rem;letter-spacing:0.12em;color:rgba(0,255,255,0.45);text-align:center;min-height:1.4em;"></div>
+    <button id="btn-back-mp" style="background:none;border:none;color:rgba(0,255,255,0.35);font-family:var(--mono);font-size:0.7rem;letter-spacing:0.1em;cursor:pointer;">← BACK</button>
   </div>
 
   <!-- Step 3: Lobby -->
@@ -293,7 +294,8 @@ app.innerHTML = `
     <div id="lobby-share-link" class="lobby-share-link"></div>
     <div id="lobby-countdown" class="lobby-countdown">—</div>
     <div id="lobby-players" class="lobby-players"></div>
-    <div class="lobby-hint">Share the code · starts in 20s with 2+ pilots · SHIFT=BOOST · C=BRAKE</div>
+    <div id="lobby-status" class="lobby-hint">Waiting for players... share the code</div>
+    <button id="btn-start-custom" class="intro-button" style="display:none; margin-top:0.5rem;">START GAME</button>
     <button id="btn-lobby-cancel" class="death-btn death-btn--quit" style="margin-top:0.5rem">LEAVE</button>
   </div>
 
@@ -389,6 +391,8 @@ const G = {
   modeSelect:     document.getElementById('mode-select'),
   btnSolo:        document.getElementById('btn-solo'),
   btnMulti:       document.getElementById('btn-multi'),
+  btnSoloBack:    document.getElementById('btn-back-solo'),
+  btnBackMp:      document.getElementById('btn-back-mp'),
   introHint:      document.getElementById('intro-hint'),
   introKeyRow:    document.getElementById('intro-key-row'),
   mpSetup:        document.getElementById('mp-setup'),
@@ -399,13 +403,23 @@ const G = {
   roomCodeText:   document.getElementById('room-code-text'),
   roomCopyHint:   document.getElementById('room-copy-hint'),
   btnMpJoin:      document.getElementById('btn-mp-join'),
+  btnMpBack:      document.getElementById('btn-mp-back'),
+  btnJoinCustom: document.getElementById('btn-join-room'),
+  btnJoinPublic: document.getElementById('btn-public'),
+  btnStartCustom:document.getElementById('btn-start-custom'),
+  mpStatus:       document.getElementById('mp-status'),
   mpLobby:        document.getElementById('mp-lobby'),
   lobbyRoomCode:  document.getElementById('lobby-room-code'),
   lobbyCopyHint:  document.getElementById('lobby-copy-hint'),
   lobbyCountdown: document.getElementById('lobby-countdown'),
   lobbyPlayers:   document.getElementById('lobby-players'),
+  lobbyStatus:    document.getElementById('lobby-status'),
+  lobbyCodeDisplay: document.getElementById('lobby-code-display'),
   btnLobbyCancel: document.getElementById('btn-lobby-cancel'),
   mpLeaderboard:  document.getElementById('mp-leaderboard'),
+  mpLbList:       document.getElementById('mp-lb-list'),
+  mpSessionTimer: document.getElementById('mp-session-timer'),
+  killFeed:       document.getElementById('kill-feed'),
   respawnOverlay: document.getElementById('respawn-overlay'),
   mpEndScreen:    document.getElementById('mp-end-screen'),
   controlsHudLeft:  document.getElementById('controls-hud-left'),
@@ -495,11 +509,15 @@ const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:3001";
 let socket = null;
 let mpMode = false;
 let myRoomCode = null;
+let amHost = false;
+let mySpawnOffset = { x: 0, y: 0 };
 let otherPlayers = new Map();
 let posInterval = null;
 let mpRoomState = { players: [] };
-let mpSessionEndMs = 0;
 let lbTickInterval = null;
+let _mpSpeedMult = 1.0;
+let _mpSeed = null;
+let _lobbyCountdownInterval = null;
 let mpIsHost = false;
 let myMpColor = "#00ccff";
 
@@ -514,17 +532,35 @@ if (storedBest > 0 && G.bestDisplay) G.bestDisplay.textContent = `PB: ${storedBe
 GLOBAL_STATS.bestRun = Math.max(GLOBAL_STATS.bestRun, storedBest);
 
 // Typewriter intro
+let typeInterval = null;
 const INTRO_TEXT = "SYSTEM BREACH DETECTED // SELECT MODE";
 let typeIdx = 0;
-const typeTimer = setInterval(() => {
+const originalTypeTimer = setInterval(() => {
   G.introLabel.classList.add("is-typing");
   typeIdx++;
   G.introLabel.textContent = INTRO_TEXT.slice(0, typeIdx);
   if (typeIdx >= INTRO_TEXT.length) {
-    clearInterval(typeTimer);
+    clearInterval(originalTypeTimer);
     G.introLabel.classList.remove("is-typing");
   }
 }, 38);
+
+function runTypewriter(text, targetEl = G.introLabel) {
+  if (typeInterval) clearInterval(typeInterval);
+  if (!targetEl) return;
+  targetEl.textContent = '';
+  targetEl.classList.add('is-typing');
+  let idx = 0;
+  typeInterval = setInterval(() => {
+    idx++;
+    targetEl.textContent = text.slice(0, idx);
+    if (idx >= text.length) {
+      clearInterval(typeInterval);
+      typeInterval = null;
+      targetEl.classList.remove('is-typing');
+    }
+  }, 38);
+}
 
 function flashWhite(opacity = 0.08, durationMs = 70) {
   if (!G.whiteFlash) return;
@@ -703,6 +739,7 @@ if (G.btnSolo) {
         ? "<span>LEFT = MOVE</span><span>RIGHT = SHOOT</span><span>⚡ BOOST BTN</span><span>⚓ BRAKE BTN</span>"
         : "<span>WASD = MOVE</span><span>MOUSE = AIM</span><span>SPACE = SHOOT</span><span>SHIFT = BOOST</span><span>C = BRAKE</span>";
     }
+    runTypewriter("identify yourself. or don't. i'll find out anyway.", G.introLabel);
     setTimeout(() => G.introInput?.focus(), 50);
   });
 }
@@ -710,8 +747,9 @@ if (G.btnSoloBack) {
   G.btnSoloBack.addEventListener("click", () => {
     G.introHint.style.display = "none";
     G.introForm.style.display = "none";
-    G.btnSoloBack.style.display = "none";
+    if (G.btnSoloBack) G.btnSoloBack.style.display = "none";
     G.modeSelect.style.display = "flex";
+    runTypewriter("SYSTEM BREACH DETECTED // SELECT MODE", G.introLabel);
   });
 }
 if (G.btnMulti) {
@@ -731,6 +769,7 @@ if (G.btnMulti) {
     if (G.introKeyRow) {
       G.introKeyRow.innerHTML = "<span>WASD = MOVE</span><span>MOUSE = AIM</span><span>SPACE = SHOOT</span><span>SHIFT = BOOST</span><span>C = BRAKE</span>";
     }
+    runTypewriter("identify yourself. or don't. i'll find out anyway.", G.introLabel);
     setTimeout(() => G.mpName?.focus(), 50);
     initSocket();
   });
@@ -766,10 +805,13 @@ if (G.btnJoinPublic) {
 }
 if (G.btnMpBack) {
   G.btnMpBack.addEventListener("click", () => {
+    socket?.disconnect();
+    socket = null;
     G.mpSetup.style.display = "none";
     G.introHint.style.display = "none";
     G.introForm.style.display = "none";
     G.modeSelect.style.display = "flex";
+    runTypewriter("SYSTEM BREACH DETECTED // SELECT MODE", G.introLabel);
   });
 }
 if (G.btnStartCustom) {
@@ -853,6 +895,26 @@ function pushKillFeed(text, color = "#ffffff") {
   setTimeout(() => line.remove(), 3200);
 }
 
+function startPosBroadcast() {
+  if (posInterval) clearInterval(posInterval);
+  posInterval = setInterval(() => {
+    if (!socket?.connected || !threeApp || !mpMode) return;
+    const pos = threeApp.getShipPosition();
+    const rot = threeApp.getShipRotation();
+    socket.emit("player_state", {
+      x: pos.x, y: pos.y, z: pos.z,
+      rotZ: rot.z,
+      survivalTime: threeApp.getSurvivalTime(),
+      alive: health > 0,
+    });
+  }, 50);
+}
+
+function stopPosBroadcast() {
+  if (posInterval) clearInterval(posInterval);
+  posInterval = null;
+}
+
 function initSocket() {
   if (socket?.connected || typeof window.io !== "function") return;
   socket = window.io(SOCKET_URL, { transports: ["websocket"] });
@@ -860,28 +922,34 @@ function initSocket() {
   socket.on("connect_error", () => { if (G.btnCreate) G.btnCreate.textContent = "CONNECTING... (waking)"; });
   socket.on("room_created", ({ code }) => {
     myRoomCode = code;
+    amHost = true;
     mpIsHost = true;
-    if (G.roomDisplay) G.roomDisplay.style.display = "block";
-    if (G.roomCodeText) G.roomCodeText.textContent = code;
-    if (G.roomCodeInput) G.roomCodeInput.value = code;
-    socket.emit("join_room", { code, name: G.mpName?.value.trim(), color: pickMpColor() });
+    if (G.mpSetup) G.mpSetup.style.display = "none";
+    if (G.mpLobby) G.mpLobby.style.display = "flex";
+    if (G.lobbyRoomCode) G.lobbyRoomCode.textContent = code;
+    if (G.btnStartCustom) G.btnStartCustom.style.display = "inline-block";
   });
   socket.on("public_joined", ({ code }) => {
     myRoomCode = code;
-    if (G.roomDisplay) G.roomDisplay.style.display = "block";
-    if (G.roomCodeText) G.roomCodeText.textContent = code;
-    if (G.roomCodeInput) G.roomCodeInput.value = code;
-  });
-  socket.on("room_joined", ({ code }) => {
-    myRoomCode = code;
-    mpIsHost = false;
+    amHost = true;
+    mpIsHost = true;
     if (G.mpSetup) G.mpSetup.style.display = "none";
     if (G.mpLobby) G.mpLobby.style.display = "flex";
     if (G.lobbyRoomCode) G.lobbyRoomCode.textContent = code;
   });
+  socket.on("room_joined", ({ code }) => {
+    myRoomCode = code;
+    amHost = false;
+    mpIsHost = false;
+    if (G.mpSetup) G.mpSetup.style.display = "none";
+    if (G.mpLobby) G.mpLobby.style.display = "flex";
+    if (G.lobbyRoomCode) G.lobbyRoomCode.textContent = code;
+    if (G.btnStartCustom) G.btnStartCustom.style.display = "none";
+  });
   socket.on("room_role", ({ isHost }) => {
+    amHost = !!isHost;
     mpIsHost = !!isHost;
-    if (G.btnStartCustom) G.btnStartCustom.style.display = mpIsHost ? "block" : "none";
+    if (G.btnStartCustom) G.btnStartCustom.style.display = mpIsHost ? "inline-block" : "none";
   });
   socket.on("join_error", (msg) => {
     alert(`Could not join: ${msg}`);
@@ -926,29 +994,80 @@ function initSocket() {
       if (left <= 0) clearInterval(t);
     }, 200);
   });
-  socket.on("session_started", ({ sessionEnd }) => {
+  socket.on("session_started", ({ sessionEnd, seed, players, spawnOffsets }) => {
     mpMode = true;
-    mpSessionEndMs = sessionEnd;
-    if (G.mpLeaderboard) G.mpLeaderboard.style.display = "none";
-    if (G.killFeed) G.killFeed.style.display = "none";
+    _mpSeed = seed;
+    _mpSpeedMult = 1.0;
+    mpRoomState = { players: players || [] };
+    
+    const myOffset = spawnOffsets?.find(s => s.id === socket.id);
+    mySpawnOffset = myOffset ? { x: myOffset.x, y: myOffset.y } : { x: 0, y: 0 };
+    
+    if (!PLAYER_NAME || PLAYER_NAME === '') {
+      PLAYER_NAME = (G.mpName?.value.trim() || '').replace(/[^a-zA-Z0-9_\-]/g, '').slice(0, 16)
+                    || ('pilot_' + socket.id.slice(0, 4));
+    }
+    
     clearInterval(lbTickInterval);
     lbTickInterval = setInterval(() => {
       if (G.mpSessionTimer) {
-        const left = Math.max(0, Math.ceil((mpSessionEndMs - Date.now()) / 1000));
+        const left = Math.max(0, Math.ceil((sessionEnd - Date.now()) / 1000));
         const m = Math.floor(left / 60);
         const s = String(left % 60).padStart(2, "0");
         G.mpSessionTimer.textContent = `${m}:${s}`;
       }
       updateMpLeaderboard();
-    }, 200);
-    startGame();
+    }, 500);
+    
+    if (G.mpLeaderboard) G.mpLeaderboard.classList.add('is-visible');
+    if (G.killFeed) G.killFeed.style.display = 'block';
+    
+    hasStarted = true;
+    if (!aiTroll) aiTroll = new AITroll(G.aiBox, G.aiMsg, PLAYER_NAME);
+    else aiTroll.setPilot(PLAYER_NAME);
+
+    if (!threeApp) { 
+      threeApp = buildThreeApp(G.gameLayer); 
+      threeApp.start(); 
+    }
+
+    threeApp.beginRun({ multiplayer: true, speedMult: _mpSpeedMult, seed: _mpSeed, spawnX: mySpawnOffset.x, spawnY: mySpawnOffset.y });
+
+    G.hud.classList.add('is-active');
+    G.introScreen.classList.add('is-fading');
+    setTimeout(() => G.introScreen.classList.add('is-gone'), 500);
+    setTimeout(() => aiTroll.pushFirstLine(true), 700);
+
+    if ('ontouchstart' in window) { G.shootHint?.classList.add('is-visible'); showMobileTutorial(); }
+
+    // Initialize other players at spawn positions
+    if (players && spawnOffsets) {
+      for (const p of players) {
+        if (p.id !== socket.id) {
+          const offset = spawnOffsets.find(s => s.id === p.id);
+          threeApp.updateRemotePlayer({ 
+            ...p, 
+            x: offset?.x ?? 0, 
+            y: offset?.y ?? 0, 
+            z: 0, 
+            rotZ: 0 
+          });
+        }
+      }
+    }
+
+    // startPosBroadcast removed - tick already handles player_state emission
   });
   socket.on("player_state", (state) => {
     if (!threeApp || !state?.id || state.id === socket.id) return;
     threeApp.updateRemotePlayer(state);
     const idx = (mpRoomState.players || []).findIndex(p => p.id === state.id);
-    if (idx >= 0) mpRoomState.players[idx] = { ...mpRoomState.players[idx], ...state };
-    else (mpRoomState.players || (mpRoomState.players = [])).push(state);
+    if (idx >= 0) {
+      mpRoomState.players[idx] = { ...mpRoomState.players[idx], ...state };
+    } else {
+      mpRoomState.players = mpRoomState.players || [];
+      mpRoomState.players.push(state);
+    }
     updateMpLeaderboard();
   });
   socket.on("player_left", ({ id }) => {
@@ -977,21 +1096,37 @@ function initSocket() {
   socket.on("player_respawned", ({ name }) => {
     pushKillFeed(`${name} respawned`, "#66ffcc");
   });
-  socket.on("player_hit", ({ victimId, health, shooterId }) => {
+socket.on("player_hit", ({ victimId, health, shooterId, damage }) => {
     const myId = socket?.id;
     if (victimId === myId) {
-      applyDamage(10, "taking fire from another pilot.");
+      // I got hit!
+      flashWhite(0.15, 100);
+      if (threeApp?.takeDamage) {
+        threeApp.takeDamage(damage || 10, "taking fire from another pilot.");
+      }
+      // Crosshair turns red
+      G.crosshair?.classList.add('hit');
+      setTimeout(() => G.crosshair?.classList.remove('hit'), 150);
       return;
     }
+    // Another player was hit - show effect on their ship
     const entry = otherPlayers.get(victimId);
     if (!entry?.mesh) return;
-    // Brief red flash on the remote player's mesh to indicate damage
+    
+    // Red flash on the remote player's mesh
     entry.mesh.traverse((child) => {
       if (!child.isMesh || !child.material?.color) return;
       const orig = child.material.color.clone();
-      child.material.color.set(0xff4444);
-      setTimeout(() => child.material.color.copy(orig), 120);
+      child.material.color.set(0xff0000);
+      setTimeout(() => { 
+        if (child.material) child.material.color.copy(orig); 
+      }, 200);
     });
+    
+    // Add hit particles using threeApp
+    if (threeApp?.spawnParticles) {
+      threeApp.spawnParticles(entry.mesh.position.clone(), 0xff4444);
+    }
   });
   socket.on("core_spawn", (core) => {
     if (!threeApp || !core?.id) return;
@@ -1002,9 +1137,60 @@ function initSocket() {
     threeApp.destroySharedCore(id, true);
   });
   socket.on("session_ended", ({ standings = [] }) => {
+    stopPosBroadcast();
+    if (lbTickInterval) clearInterval(lbTickInterval);
     mpRoomState.players = standings;
     updateMpLeaderboard();
+    showMpEndScreen(standings);
   });
+  
+  socket.on("respawn", ({ x, y }) => {
+    if (threeApp) {
+      threeApp.forceRespawn(x ?? mySpawnOffset.x, y ?? mySpawnOffset.y);
+    }
+    flashWhite(0.12, 100);
+    health = 80;
+    updateHUD(coresDestroyed, escapeTimeNeeded);
+    if (G.respawnOverlay) {
+      G.respawnOverlay.classList.add('is-visible');
+      setTimeout(() => G.respawnOverlay.classList.remove('is-visible'), 400);
+    }
+  });
+  
+  socket.on("portal_unlocked", () => {
+    if (!portalUnlocked) unlockPortal(coresDestroyed);
+  });
+  
+  socket.on("player_escaped", ({ id, name, survivalTime }) => {
+    pushKillFeed(`${name || 'pilot'} ESCAPED · ${(survivalTime || 0).toFixed(1)}s`, '#00ffff');
+    if (threeApp) threeApp.removeRemotePlayer(id);
+  });
+}
+
+function showMpEndScreen(standings) {
+  stopPosBroadcast();
+  if (lbTickInterval) clearInterval(lbTickInterval);
+  if (G.mpLeaderboard) G.mpLeaderboard.classList.remove('is-visible');
+  
+  const myRank = standings.findIndex(p => p.id === socket?.id) + 1;
+  const rankEl = document.getElementById('mp-end-rank');
+  if (rankEl) rankEl.textContent = `YOU PLACED #${myRank} OF ${standings.length}`;
+  
+  const list = document.getElementById('mp-end-list');
+  if (list) {
+    list.innerHTML = standings.map((p, i) => `
+      <div class="mp-lb-row ${p.id === socket?.id ? 'is-you' : ''}">
+        <span class="mp-lb-rank">#${i + 1}</span>
+        <span class="mp-lb-name" style="color:${p.color}">${p.name}</span>
+        <span class="mp-lb-kills">⚔${p.kills || 0}</span>
+        <span class="mp-lb-time">${(p.survivalTime || 0).toFixed(1)}s</span>
+      </div>`).join('');
+  }
+  
+  if (G.mpEndScreen) G.mpEndScreen.classList.add('is-visible');
+  
+  document.getElementById('mp-end-retry')?.addEventListener('click', () => location.reload(), { once: true });
+  document.getElementById('mp-end-quit')?.addEventListener('click', () => { location.href = CFG.WEBRING_URL; }, { once: true });
 }
 window.addEventListener("keydown", e => {
   if (e.key === "Enter" && !hasStarted && document.activeElement === G.introInput) {
@@ -1152,63 +1338,94 @@ function buildThreeApp(container) {
 
   function createRemotePlayerMesh(name = "pilot", color = "#00ffff") {
     const group = new THREE.Group();
+    const playerColor = new THREE.Color(color);
 
-    // Ship body — same as local player but tinted with player color
-    buildShip(group);
-    group.traverse((child) => {
-      if (!child.isMesh || !child.material?.color) return;
-      child.material = child.material.clone();
-      child.material.color.set(color);
-    });
+    // Full-size replica of local player ship (scale 0.82)
+    const scale = 0.82;
 
-    // Bright dot marker — always renders on top, no fog, no depth test
-    const markerMat = new THREE.MeshBasicMaterial({ color, depthTest: false, fog: false });
-    const marker = new THREE.Mesh(new THREE.SphereGeometry(0.8, 8, 8), markerMat);
-    marker.renderOrder = 999;
-    group.add(marker);
+    // Main body - cone
+    const bodyGeo = new THREE.ConeGeometry(0.5 * scale * 2, 4 * scale, 10);
+    const bodyMat = new THREE.MeshBasicMaterial({ color: playerColor });
+    const body = new THREE.Mesh(bodyGeo, bodyMat);
+    body.rotation.x = Math.PI / 2;
+    group.add(body);
 
-    // Ring around the ship — easy to spot
-    const ringMat = new THREE.MeshBasicMaterial({ color, depthTest: false, fog: false, transparent: true, opacity: 0.85 });
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(2.2, 0.15, 6, 20), ringMat);
-    ring.rotation.x = Math.PI / 2;
-    ring.renderOrder = 998;
-    group.add(ring);
+    // Canopy - sphere
+    const canopyGeo = new THREE.SphereGeometry(0.34 * scale, 8, 8);
+    const canopyMat = new THREE.MeshBasicMaterial({ color: 0x88eeff, transparent: true, opacity: 0.75 });
+    const canopy = new THREE.Mesh(canopyGeo, canopyMat);
+    canopy.position.set(0, 0.3 * scale, -0.8 * scale);
+    group.add(canopy);
+
+    // Wings
+    const wingGeo = new THREE.BoxGeometry(3.5 * scale, 0.08 * scale, 1.4 * scale);
+    const wingMat = new THREE.MeshBasicMaterial({ color: playerColor });
+    const wingL = new THREE.Mesh(wingGeo, wingMat);
+    wingL.position.set(-1.5 * scale, 0, 0.4 * scale);
+    wingL.rotation.z = 0.1;
+    group.add(wingL);
+    const wingR = wingL.clone();
+    wingR.position.set(1.5 * scale, 0, 0.4 * scale);
+    wingR.rotation.z = -0.1;
+    group.add(wingR);
+
+    // Engine pods
+    const podGeo = new THREE.CylinderGeometry(0.18 * scale, 0.22 * scale, 1.4 * scale, 8);
+    const podMat = new THREE.MeshBasicMaterial({ color: 0x446688 });
+    const podL = new THREE.Mesh(podGeo, podMat);
+    podL.position.set(-1.2 * scale, 0, 1.0 * scale);
+    podL.rotation.x = Math.PI / 2;
+    group.add(podL);
+    const podR = podL.clone();
+    podR.position.set(1.2 * scale, 0, 1.0 * scale);
+    group.add(podR);
+
+    // Engine exhausts
+    const exGeo = new THREE.ConeGeometry(0.22 * scale, 1.2 * scale, 6);
+    const exMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.9 });
+    const exL = new THREE.Mesh(exGeo, exMat);
+    exL.position.set(-1.2 * scale, 0, 1.9 * scale);
+    exL.rotation.x = -Math.PI / 2;
+    group.add(exL);
+    const exR = exL.clone();
+    exR.position.set(1.2 * scale, 0, 1.9 * scale);
+    group.add(exR);
 
     // Name label
     const labelSprite = makeTextSprite(name || "pilot", color);
-    labelSprite.position.set(0, 3, 0);
+    labelSprite.position.set(0, 3.5 * scale, 0);
     group.add(labelSprite);
+
     return group;
   }
 
   function makeTextSprite(text, color = "#00ffff") {
     const canvas = document.createElement("canvas");
-    canvas.width = 512;
-    canvas.height = 128;
+    canvas.width = 256;
+    canvas.height = 64;
     const ctx = canvas.getContext("2d");
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = "rgba(0,0,0,0.6)";
-    ctx.fillRect(20, 16, 472, 96);
+    ctx.fillStyle = "rgba(0,0,0,0.5)";
+    ctx.fillRect(4, 4, 248, 56);
     ctx.strokeStyle = color;
-    ctx.lineWidth = 3;
-    ctx.strokeRect(20, 16, 472, 96);
+    ctx.lineWidth = 2;
+    ctx.strokeRect(4, 4, 248, 56);
     ctx.fillStyle = "#ffffff";
-    ctx.font = "700 48px 'Share Tech Mono', monospace";
+    ctx.font = "700 24px 'Share Tech Mono', monospace";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(String(text).slice(0, 16), canvas.width / 2, canvas.height / 2 + 3);
+    ctx.fillText(String(text).slice(0, 12), canvas.width / 2, canvas.height / 2 + 2);
 
     const texture = new THREE.CanvasTexture(canvas);
     texture.needsUpdate = true;
     const material = new THREE.SpriteMaterial({
       map: texture,
       transparent: true,
-      depthTest: false,
-      sizeAttenuation: false,
+      depthTest: true,
+      depthWrite: false,
     });
     const sprite = new THREE.Sprite(material);
-    sprite.scale.set(6, 1.5, 1);
-    sprite.renderOrder = 1000;
+    sprite.scale.set(3, 0.75, 1);
     return sprite;
   }
 
@@ -1216,7 +1433,8 @@ function buildThreeApp(container) {
     if (!id || id === socket?.id) return;
     let entry = otherPlayers.get(id);
     if (!entry) {
-      const mesh = createRemotePlayerMesh(name, color);
+      // Create mesh with proper name
+      const mesh = createRemotePlayerMesh(name || "pilot", color || "#00ffff");
       _scene.add(mesh);
       entry = {
         mesh,
@@ -1225,13 +1443,14 @@ function buildThreeApp(container) {
         alive: !!alive,
         lastSeen: performance.now(),
       };
-      const relZ = THREE.MathUtils.clamp((z ?? 0) - shipAnchor.position.z, -120, 120);
-      mesh.position.set(x ?? 0, y ?? 0, shipAnchor.position.z + relZ);
+      // Start at the exact position
+      mesh.position.set(x ?? 0, y ?? 0, z ?? 0);
       mesh.rotation.z = entry.rotZ;
       mesh.visible = entry.alive;
       otherPlayers.set(id, entry);
       return;
     }
+    // Update position
     entry.pos.set(x ?? 0, y ?? 0, z ?? 0);
     entry.rotZ = rotZ || 0;
     entry.alive = !!alive;
@@ -1651,9 +1870,11 @@ function buildThreeApp(container) {
     })();
     const phaseVal = shared?.phase ?? (Math.random() * Math.PI * 2);
     const rotSpdVal = shared?.rotSpd ?? (2 + Math.random() * 2);
+    const mpId = shared?.mpId || (amHost && mpMode ? `core_${waveId}_${index}_${Date.now()}` : null);
     group.userData = {
       health: 1,
       coreId,
+      mpId,
       speed: speedVal,
       phase: phaseVal,
       rotSpd: rotSpdVal,
@@ -1666,6 +1887,21 @@ function buildThreeApp(container) {
     _scene.add(group);
     const entry = { mesh: group, active: true };
     cores.push(entry);
+    
+    if (mpMode && amHost && socket?.connected && mpId) {
+      socket.emit("core_spawn", {
+        id: mpId,
+        x: group.position.x,
+        y: group.position.y,
+        z: group.position.z,
+        waveId,
+        index,
+        speed: speedVal,
+        phase: phaseVal,
+        rotSpd: rotSpdVal,
+      });
+    }
+    
     return entry;
   }
 
@@ -1778,11 +2014,33 @@ function buildThreeApp(container) {
         bullet.destroy();
         bullets.splice(b, 1);
 
-        if (closestCore?.mesh?.userData?.coreId) {
-          const coreId = closestCore.mesh.userData.coreId;
-          const removed = destroyCoreById(coreId, true);
-          if (removed && mpMode && socket?.connected) {
-            socket.emit("core_destroyed", { id: coreId });
+        // Destroy the core locally
+        if (closestCore?.mesh?.userData) {
+          const ud = closestCore.mesh.userData;
+          destroyCoreById(ud.coreId, true);
+          
+          // In multiplayer, tell server
+          if (mpMode && socket?.connected && ud.mpId) {
+            socket.emit("core_destroyed", { id: ud.mpId });
+          }
+        }
+      }
+      
+      // Check: Do bullets hit other players?
+      if (mpMode) {
+        for (const [pid, entry] of otherPlayers) {
+          if (!entry.alive || !entry.mesh) continue;
+          const dist = bullet.mesh.position.distanceTo(entry.mesh.position);
+          if (dist < 5) {
+            // Hit another player!
+            bullet.destroy();
+            bullets.splice(b, 1);
+            
+            // Send hit to server
+            if (socket?.connected) {
+              socket.emit("player_hit", { victimId: pid });
+            }
+            break;
           }
         }
       }
@@ -2336,8 +2594,7 @@ function buildThreeApp(container) {
     }
 
     // ── SHIP MOVEMENT ──────────────────────────────────────────────
-    const mpSpeedMult = 1.0;
-    const spd = getSpeed(diffT) * throttleMult * mpSpeedMult;
+    const spd = getSpeed(diffT) * throttleMult * _mpSpeedMult;
     const isCompressed = aiDirector.isSpaceCompressed();
     const isEarly = wallTime < 22;
     const bX = isCompressed ? 10 : (isEarly ? 22 : 18);
@@ -2348,7 +2605,6 @@ function buildThreeApp(container) {
     shipAnchor.position.x = THREE.MathUtils.lerp(shipAnchor.position.x, shipTarget.x, 0.15);
     shipAnchor.position.y = THREE.MathUtils.lerp(shipAnchor.position.y, shipTarget.y, 0.15);
     shipAnchor.position.z -= spd * dt;
-
     shipAnchor.rotation.z = THREE.MathUtils.lerp(shipAnchor.rotation.z, -xIn * 0.52, 0.15);
     shipAnchor.rotation.x = THREE.MathUtils.lerp(shipAnchor.rotation.x, yIn * 0.18, 0.15);
 
@@ -2364,16 +2620,17 @@ function buildThreeApp(container) {
 
     if (mpMode && socket?.connected && myRoomCode) {
       mpStateSendAccum += rawDt;
-      if (mpStateSendAccum >= 0.05) {
+      if (mpStateSendAccum >= 0.03) {
         mpStateSendAccum = 0;
-        socket.emit("player_state", {
+        const state = {
           x: shipAnchor.position.x,
           y: shipAnchor.position.y,
           z: shipAnchor.position.z,
           rotZ: shipAnchor.rotation.z,
           survivalTime: wallTime,
           alive: isRunActive && !endSeq && health > 0,
-        });
+        };
+        socket.emit("player_state", state);
       }
     }
 
@@ -2383,21 +2640,15 @@ function buildThreeApp(container) {
         otherPlayers.delete(id);
         continue;
       }
-      if (now - entry.lastSeen > 4500) {
+      if (now - entry.lastSeen > 10000) { // Keep longer to debug
         removeRemotePlayer(id);
         continue;
       }
-      // Render remote players relative to local player.
-      // X and Y: their actual lateral position in the tunnel.
-      // Z: their position relative to us, clamped so they stay visible.
-      const relZ = THREE.MathUtils.clamp(entry.pos.z - shipAnchor.position.z, -120, 120);
-      const displayZ = shipAnchor.position.z + relZ;
-      const targetX = entry.pos.x;
-      const targetY = entry.pos.y;
-      entry.mesh.position.x = THREE.MathUtils.lerp(entry.mesh.position.x, targetX, 0.25);
-      entry.mesh.position.y = THREE.MathUtils.lerp(entry.mesh.position.y, targetY, 0.25);
-      entry.mesh.position.z = THREE.MathUtils.lerp(entry.mesh.position.z, displayZ, 0.25);
-      entry.mesh.rotation.z = THREE.MathUtils.lerp(entry.mesh.rotation.z, entry.rotZ, 0.35);
+      // Immediate position update - no lerp
+      entry.mesh.position.x = entry.pos.x;
+      entry.mesh.position.y = entry.pos.y;
+      entry.mesh.position.z = entry.pos.z;
+      entry.mesh.rotation.z = entry.rotZ;
     }
 
     // ── CAMERA ─────────────────────────────────────────────────────
@@ -2663,10 +2914,19 @@ function buildThreeApp(container) {
       window.addEventListener("touchend", onTouchEnd);
       requestAnimationFrame(tick);
     },
-    beginRun({ fromPortal = false, referrer = null, multiplayer = false } = {}) {
+    beginRun({ fromPortal = false, referrer = null, multiplayer = false, speedMult = 1.0, seed = null, spawnX = 0, spawnY = 0 } = {}) {
       resetRun();
+      _mpSpeedMult = speedMult;
+      
+      if (seed !== null && seed !== undefined) {
+        spawnState.rng = rng32(seed >>> 0);
+      }
+      
+      shipAnchor.position.set(spawnX, spawnY, 0);
+      shipTarget.set(spawnX, spawnY, 0);
+      
       isRunActive = true;
-      if (multiplayer) mpMode = true; // only set to true, never override back to false
+      if (multiplayer) mpMode = true;
       prevTs = 0;
       aiTroll?.stopSpeech();
       speechSynthesis?.cancel();
@@ -2674,6 +2934,15 @@ function buildThreeApp(container) {
       G.portalArrow.classList.remove("is-visible");
       audio.start();
       if (fromPortal && referrer) buildStartPortal(portalSys, referrer, shipAnchor.position.z);
+    },
+    forceRespawn(x, y) {
+      shipAnchor.position.x = x;
+      shipAnchor.position.y = y;
+      shipTarget.x = x;
+      shipTarget.y = y;
+      invuln = 1.5;
+      health = Math.min(CFG.PLAYER_HEALTH, health + 40);
+      updateHUD(coresDestroyed, escapeTimeNeeded);
     },
     getShipPosition: () => ({ x: shipAnchor.position.x, y: shipAnchor.position.y, z: shipAnchor.position.z }),
     getShipRotation: () => ({ z: shipAnchor.rotation.z }),
@@ -2685,6 +2954,8 @@ function buildThreeApp(container) {
     destroySharedCore: destroyCoreById,
     updateRemotePlayer: upsertRemotePlayer,
     removeRemotePlayer,
+    spawnParticles,
+    takeDamage: applyDamage,
   };
 }
 
