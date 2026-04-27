@@ -3479,6 +3479,14 @@ function forceCorridor(walls, playerZ, cores = [], firewalls = []) {
   const offsets = [{ x: 7, y: 3 }, { x: -5, y: -3 }];
   const wallZPositions = [];
 
+  // Clear all existing active walls first so only the 2 forced ones appear
+  for (const o of walls) {
+    if (o.active) {
+      o.group.visible = false;
+      o.active = false;
+    }
+  }
+
   for (const o of walls) {
     if (o.active || placed >= offsets.length) continue;
     const off = offsets[placed];
