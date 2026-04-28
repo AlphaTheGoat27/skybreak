@@ -343,4 +343,6 @@ if (![x, y, z, dx, dy, dz].every(Number.isFinite)) return;
 });
 
 const PORT = process.env.PORT || 3001;
-server.listen(PORT, () => console.log(`SKYBREAK server :${PORT}`));
+server.listen(PORT, "0.0.0.0", () => {
+  console.log(`SKYBREAK server :${PORT}`);
+});
