@@ -193,7 +193,7 @@ body {
   top: 3.6rem;
   left: 50%;
   transform: translateX(-50%);
-  font-size: 12px;
+  font-size: 18px;
   font-weight: bold;
   letter-spacing: 0.1em;
   color: var(--cyan);
@@ -236,8 +236,9 @@ body {
   bottom: 1.1rem;
   left: 1.1rem;
   display: flex;
+  flex-direction: row;
   align-items: center;
-  gap: 0.55rem;
+  gap: 0.4rem;
 }
 
 .hud-bar-label {
@@ -251,7 +252,7 @@ body {
 .hud-bar {
   position: relative;
   height: 9px;
-  width: 130px;
+  width: 80px;
   background: rgba(0,0,0,0.7);
   border-radius: 2px;
   overflow: hidden;
@@ -483,14 +484,21 @@ body {
   transform: translateY(-50%);
   text-align: center;
   font-family: var(--mono);
-  font-size: clamp(0.9rem, 2.5vw, 1.3rem);
+  font-size: clamp(1rem, 3vw, 1.6rem);
   letter-spacing: 0.35em;
   color: var(--cyan);
   pointer-events: none;
-  z-index: 18;
+  z-index: 8;
   opacity: 0;
-  text-shadow: 0 0 16px currentColor;
-  transition: opacity 0.2s ease;
+  text-shadow: 0 0 20px currentColor, 0 0 40px rgba(0,255,255,0.4);
+  transition: opacity 0.25s ease;
+  padding: 1.2rem 2rem;
+  background: rgba(0, 6, 12, 0.82);
+  border-top: 1px solid rgba(0,255,255,0.18);
+  border-bottom: 1px solid rgba(0,255,255,0.18);
+  backdrop-filter: blur(8px);
+  white-space: pre-line;
+  line-height: 1.8;
 }
 
 .chapter-banner.is-visible { opacity: 1; }
@@ -923,12 +931,12 @@ body {
 .intro-narrative {
   font-size: clamp(10px, 1.5vw, 13px);
   letter-spacing: 0.18em;
-  color: rgba(200, 245, 255, 0.92);
+  color: rgba(160, 220, 255, 0.92);
   text-align: center;
   line-height: 1.6;
   text-shadow:
-    0 0 8px rgba(0,255,255,0.5),
-    0 0 20px rgba(0,255,255,0.25);
+    0 0 8px rgba(100,180,255,0.4),
+    0 0 20px rgba(100,180,255,0.2);
 }
 
 @media (max-height: 700px) {
@@ -1340,7 +1348,7 @@ body {
   border-radius: 6px;
   backdrop-filter: blur(4px);
   pointer-events: none;
-  z-index: 8;
+  z-index: 20;
   opacity: 0;
   transition: opacity 0.4s ease;
 }
@@ -1521,6 +1529,19 @@ body:has(.mp-leaderboard.is-visible) .controls-hud--right {
   animation: pulse-red 0.3s ease-in-out infinite;
 }
 
+.brake-heat-bar  { border: 1px solid rgba(0, 180, 255, 0.35); box-shadow: 0 0 6px rgba(0,180,255,0.12); }
+.brake-heat-fill {
+  background: linear-gradient(90deg, #0099ff, #00ccff);
+  transition: width 0.08s ease-out, background 0.15s ease;
+}
+.brake-heat-fill[data-state="warning"] {
+  background: linear-gradient(90deg, #0066ff, #0099ff);
+}
+.brake-heat-fill[data-state="critical"] {
+  background: #ff8800;
+  animation: pulse-red 0.3s ease-in-out infinite;
+}
+
 /* ── Mode Select ─────────────────────────────────────────────────── */
 .mode-select { display:flex; flex-direction:column; align-items:center; gap:1.2rem; }
 .mode-hint { width: min(640px, 92vw); }
@@ -1678,3 +1699,21 @@ body:has(.mp-leaderboard.is-visible) .controls-hud--right {
   pointer-events: none;
 }
 
+/* ═══════════════════════════════════════════════════════════════════
+   VICTORY SCREEN ANIMATIONS
+   ═══════════════════════════════════════════════════════════════════ */
+@keyframes fadeInVictory {
+  from { opacity: 0; transform: scale(0.97); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes pulse-cyan {
+  0%, 100% { 
+    text-shadow: 0 0 40px #00ffff, 0 0 80px rgba(0,255,255,0.8), 0 0 120px rgba(0,255,255,0.4);
+    transform: scale(1);
+  }
+  50% { 
+    text-shadow: 0 0 60px #00ffff, 0 0 100px rgba(0,255,255,0.9), 0 0 140px rgba(0,255,255,0.6);
+    transform: scale(1.02);
+  }
+}

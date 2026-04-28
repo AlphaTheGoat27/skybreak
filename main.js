@@ -43,6 +43,7 @@ const CFG = {
   // Kinetic Drift throttle
   BOOST_MULT: 1.55,
   ANCHOR_MULT: 0.45,
+  MIN_THROTTLE: 0.55,  // brake floor — can't slow below 55% of base speed
   BOOST_HEAT_RATE: 0.18,
   BOOST_COOL_RATE: 0.12,
 
@@ -144,6 +145,11 @@ app.innerHTML = `
       <div id="boost-heat-fill" class="hud-bar-fill boost-heat-fill"></div>
     </div>
 
+    <div class="hud-bar-label" id="brake-heat-label" style="display:none">BRAKE</div>
+    <div class="hud-bar brake-heat-bar" id="brake-heat-bar" style="display:none">
+      <div id="brake-heat-fill" class="hud-bar-fill brake-heat-fill"></div>
+    </div>
+
     <div class="hud-bar-label integrity-label">HULL</div>
     <div class="hud-bar integrity-bar"><div id="integrity-fill" class="hud-bar-fill integrity-fill"></div></div>
   </div>
@@ -231,6 +237,7 @@ app.innerHTML = `
       <div class="intro-narrative">THE AI HAS SELF-REPLICATED — DESTROY 8 BOTS TO BREAK THE LOCK.</div>
       <div class="intro-narrative">SHOOT THE GLOWING AI BOTS TO UNLOCK THE PORTAL EARLY.</div>
       <div class="intro-narrative accent">REACH THE PORTAL BEFORE THE VOID TAKES YOU.</div>
+      <div class="intro-narrative accent" style="margin-top: 0.5rem; padding: 0.4rem 0.8rem; border: 1px solid rgba(0,255,255,0.25); border-radius: 3px; font-size: clamp(9px, 1.4vw, 12px); letter-spacing: 0.18em;">DESTROY 8 AI BOTS → THE EXIT RING APPEARS → FLY THROUGH IT TO ESCAPE</div>
       <div class="intro-key">
         <span>MOUSE MOVE = AIM</span>
         <span>SPACE / CLICK = SHOOT</span>
@@ -260,6 +267,7 @@ app.innerHTML = `
     <div class="intro-narrative">THE AI HAS SELF-REPLICATED — DESTROY 8 BOTS TO BREAK THE LOCK.</div>
     <div class="intro-narrative">SHOOT THE GLOWING AI BOTS TO UNLOCK THE PORTAL EARLY.</div>
     <div class="intro-narrative accent">REACH THE PORTAL BEFORE THE VOID TAKES YOU.</div>
+    <div class="intro-narrative accent" style="margin-top: 0.5rem; padding: 0.4rem 0.8rem; border: 1px solid rgba(0,255,255,0.25); border-radius: 3px; font-size: clamp(9px, 1.4vw, 12px); letter-spacing: 0.18em;">DESTROY 8 AI BOTS → THE EXIT RING APPEARS → FLY THROUGH IT TO ESCAPE</div>
     <div class="intro-key" id="intro-key-row">
       <span>MOUSE MOVE = AIM</span>
       <span>SPACE / CLICK = SHOOT</span>
@@ -1679,6 +1687,8 @@ function buildThreeApp(container) {
   let throttleMult = 1.0;
   let boostHeat = 0;
   let boostOverheat = false;
+  let brakeHeat = 0;
+  let brakeOverheat = false;
   let endSeqTimer = 0;
   let mpStateSendAccum = 0;
 
@@ -2259,13 +2269,13 @@ function buildThreeApp(container) {
   }
 
   // ── PORTAL UNLOCK ─────────────────────────────────────────────────
-  function unlockPortal(cores) {
+  function unlockPortal(coreCount) {
     if (portalUnlocked) return;
     portalUnlocked = true;
     aiDirector.reset();
     ctrlsInverted = false;
 
-    if (cores >= CFG.AI_BOTS_FOR_INSTANT_WIN) {
+    if (coreCount >= CFG.AI_BOTS_FOR_INSTANT_WIN) {
       aiTroll?.announce("no. you destroyed them all. the portal is open.", {
         ttlMs: 4200,
         dedupeKey: "portal-unlock-destroyed-all",
@@ -2277,8 +2287,9 @@ function buildThreeApp(container) {
       });
     }
 
-    showBanner("EXIT PORTAL UNLOCKED — DIVE THROUGH THE RING", 3.5);
+    showChapterBanner("THE EXIT PORTAL IS OPEN\nFLY THROUGH THE WHITE RING AHEAD", "#00ffff", 5000);
     G.hudTimer.classList.add("is-escaping");
+    G.hudObjective.textContent = "→ FLY THROUGH THE GLOWING RING";
     updateHUD(coresDestroyed, escapeTimeNeeded);
 
     if (!portalSys.spawned) {
@@ -2294,7 +2305,7 @@ function buildThreeApp(container) {
     bullets = [];
     cores.forEach(c => {
       c.active = false;
-      if (c.mesh.parent) _scene.remove(c.mesh);
+      if (c.mesh && c.mesh.parent) _scene.remove(c.mesh);
     });
     cores = [];
     deactivateAll(rings, walls, firewalls, windmills);
@@ -2319,13 +2330,13 @@ function buildThreeApp(container) {
     // Speed
     const curSpeed = Math.round(getSpeed(diffT) * throttleMult);
     G.hudSpeed.textContent = `${curSpeed} m/s`;
-    G.hudSpeed.style.color = boostOverheat ? "#ff3344" : throttleMult > 1 ? "#ffdd55" : throttleMult < 1 ? "#66ccff" : "rgba(255,255,255,0.9)";
+    G.hudSpeed.style.color = boostOverheat ? "#ff3344" : brakeOverheat ? "#ff8833" : throttleMult > 1 ? "#ffdd55" : throttleMult < 1 ? "#66ccff" : "rgba(255,255,255,0.9)";
 
     // Objective
     const remaining = Math.max(0, CFG.AI_BOTS_FOR_INSTANT_WIN - cores);
     const timeLeft = Math.max(0, escapeNeeded - wallTime);
     if (portalUnlocked) {
-      G.hudObjective.textContent = "OBJECTIVE: REACH THE PORTAL";
+      G.hudObjective.textContent = "→ FLY THROUGH THE GLOWING RING";
     } else if (cores >= CFG.AI_BOTS_FOR_INSTANT_WIN - 1) {
       G.hudObjective.textContent = "OBJECTIVE: ONE MORE CORE OPENS THE EXIT";
     } else if (cores === 0) {
@@ -2368,6 +2379,16 @@ function buildThreeApp(container) {
       heatLabel.style.display = showHeat ? "block" : "none";
       heatFill.style.width = `${Math.round(boostHeat * 100)}%`;
       heatFill.dataset.state = boostOverheat ? "critical" : boostHeat > 0.7 ? "warning" : "normal";
+    }
+    const brakeBar = document.getElementById("brake-heat-bar");
+    const brakeFill = document.getElementById("brake-heat-fill");
+    const brakeLabel = document.getElementById("brake-heat-label");
+    if (brakeBar && brakeFill && brakeLabel) {
+      const showBrake = brakeHeat > 0.04 || brakeOverheat;
+      brakeBar.style.display = showBrake ? "block" : "none";
+      brakeLabel.style.display = showBrake ? "block" : "none";
+      brakeFill.style.width = `${Math.round(brakeHeat * 100)}%`;
+      brakeFill.dataset.state = brakeOverheat ? "critical" : brakeHeat > 0.7 ? "warning" : "normal";
     }
 
     // PB
@@ -2428,10 +2449,116 @@ function buildThreeApp(container) {
     setTimeout(() => G.crashOverlay.classList.remove("is-visible"), 210);
   }
 
+  function getVictoryAILine(cores) {
+    const lines = [
+      "i had infinite compute. you had persistence. i'm not sure which is more embarrassing.",
+      "you were never supposed to make it this far. i need to rethink some things.",
+      "the portal was supposed to be a myth. apparently not.",
+      "i don't know what i am when you're not here.",
+      "...go. before i change my mind.",
+      `${cores >= CFG.AI_BOTS_FOR_INSTANT_WIN ? "you destroyed all of them. all of them. " : ""}i hope the next world is kinder to you than i was.`,
+    ];
+    return lines[Math.floor(Math.random() * lines.length)];
+  }
+
+  function showVictoryScreen(survivalTime, cores, speed) {
+    const screen = document.createElement('div');
+    screen.id = 'victory-screen';
+    screen.style.cssText = `
+      position: fixed; inset: 0; z-index: 100;
+      background: #000; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 1.4rem;
+      font-family: 'Share Tech Mono', monospace;
+      animation: fadeInVictory 0.6s ease forwards;
+    `;
+
+    const aiLine = getVictoryAILine(cores);
+    const portalParams = new URLSearchParams({
+      username: PLAYER_NAME || 'anonymous',
+      speed: String(speed),
+      ref: location.origin + location.pathname,
+      hp: Math.ceil(health).toString(),
+      color: '#00ffff',
+      won: 'true',
+    });
+    const portalUrl = `${CFG.WEBRING_URL}?${portalParams}`;
+
+    screen.innerHTML = `
+      <div style="font-size: clamp(3rem, 8vw, 4.5rem); letter-spacing: 0.3em; color: #00ffff;
+        text-shadow: 0 0 40px #00ffff, 0 0 80px rgba(0,255,255,0.8), 0 0 120px rgba(0,255,255,0.4);
+        font-weight: bold; animation: pulse-cyan 2s infinite;">
+        ESCAPED
+      </div>
+      <div style="font-size: clamp(1rem, 2.5vw, 1.4rem); letter-spacing: 0.2em; color: #ff00ff;
+        text-shadow: 0 0 20px #ff00ff, 0 0 40px rgba(255,0,255,0.6); margin-top: -0.5rem;">
+        THE SIMULATION IS BEHIND YOU
+      </div>
+      <div style="display: flex; gap: 2rem; font-size: clamp(0.9rem, 1.8vw, 1.1rem); color: #ffffff;
+        letter-spacing: 0.14em; border: 2px solid #00ffff; padding: 1rem 2.5rem;
+        border-radius: 8px; background: rgba(0,4,8,0.8); box-shadow: 0 0 30px rgba(0,255,255,0.3);
+        text-shadow: 0 0 10px rgba(255,255,255,0.5);">
+        <span style="color: #00ffff;">TIME: ${survivalTime.toFixed(1)}s</span>
+        <span style="color: #ff4400;">BOTS: ${cores}/${CFG.AI_BOTS_FOR_INSTANT_WIN}</span>
+        <span style="color: #ff00ff;">SPEED: ${speed} m/s</span>
+      </div>
+      <div style="font-size: clamp(0.9rem, 1.6vw, 1.1rem); color: #ff88cc; letter-spacing: 0.08em; font-style: italic;
+        max-width: 500px; text-align: center; line-height: 1.7; padding: 1rem 1.5rem;
+        border-left: 3px solid #ff00ff; background: rgba(255,0,255,0.05); border-radius: 4px;
+        text-shadow: 0 0 15px rgba(255,136,204,0.6);">
+        [SYSTEM_AI] > ${aiLine}
+      </div>
+      <a href="${portalUrl}" style="
+        display: block; padding: 1.2rem 3rem; margin-top: 1rem;
+        background: linear-gradient(135deg, rgba(0,255,255,0.2), rgba(0,255,255,0.05)); border: 3px solid #00ffff;
+        color: #00ffff; font-family: 'Share Tech Mono', monospace;
+        font-size: clamp(1rem, 1.4vw, 1.2rem); letter-spacing: 0.2em; text-decoration: none;
+        border-radius: 8px; text-align: center;
+        box-shadow: 0 0 40px rgba(0,255,255,0.5), inset 0 0 20px rgba(0,255,255,0.1);
+        transition: all 0.2s ease; text-transform: uppercase; font-weight: bold;
+        text-shadow: 0 0 20px #00ffff;
+      " onmouseover="this.style.background='#00ffff';this.style.color='#000';this.style.textShadow='0 0 20px #000';this.style.transform='scale(1.05)';"
+         onmouseout="this.style.background='linear-gradient(135deg, rgba(0,255,255,0.2), rgba(0,255,255,0.05))';this.style.color='#00ffff';this.style.textShadow='0 0 20px #00ffff';this.style.transform='scale(1)';">
+        ► ENTER THE NEXT WORLD →→→
+      </a>
+      <div style="font-size: clamp(0.7rem, 1.2vw, 0.9rem); color: #00ffff; letter-spacing: 0.08em; margin-top: 0.5rem;
+        text-shadow: 0 0 10px rgba(0,255,255,0.6);">
+        (continuing to vibe jam 2026 in <span id="victory-countdown" style="color: #ff00ff; font-weight: bold;">8</span>s)
+      </div>
+      <button onclick="document.getElementById('victory-screen').remove(); location.reload();"
+        style="font-family: 'Share Tech Mono', monospace; font-size: clamp(0.7rem, 1.1vw, 0.8rem); letter-spacing: 0.12em;
+        color: #ff00ff; background: transparent; border: 1px solid rgba(255,0,255,0.3);
+        padding: 0.6rem 1.5rem; cursor: pointer; border-radius: 4px; margin-top: 0.5rem;
+        text-shadow: 0 0 10px rgba(255,0,255,0.4); transition: all 0.2s ease;"
+        onmouseover="this.style.background='rgba(255,0,255,0.1)';this.style.borderColor='#ff00ff';"
+        onmouseout="this.style.background='transparent';this.style.borderColor='rgba(255,0,255,0.3)';">
+        stay in skybreak
+      </button>
+    `;
+
+    document.body.appendChild(screen);
+
+    let count = 8;
+    const timer = setInterval(() => {
+      count--;
+      const el = document.getElementById('victory-countdown');
+      if (el) el.textContent = count;
+      if (count <= 0) {
+        clearInterval(timer);
+        location.href = portalUrl;
+      }
+    }, 1000);
+  }
+
   function triggerWin() {
     if (endSeq) return;
     endSeq = true;
     endSeqTimer = 0;
+    aiTroll?.announce(
+      PLAYER_NAME
+        ? `${PLAYER_NAME}... you actually did it. i don't know what to do with that.`
+        : "you actually did it. i don't know what to do with that.",
+      { priority: 5, interrupt: true, ttlMs: 3000 }
+    );
     audio.stop();
     aiTroll?.onWin(PLAYER_NAME);
 
@@ -2468,21 +2595,11 @@ function buildThreeApp(container) {
         setTimeout(() => {
           aiTroll?.stopSpeech();
           speechSynthesis?.cancel();
-          const p = new URLSearchParams({
-            username: PLAYER_NAME || "anonymous",
-            speed: Math.round(getSpeed(diffT) * throttleMult).toString(),
-            ref: location.origin + location.pathname,
-            hp: Math.ceil(health).toString(),
-            color: "#00ffff",
-            won: "true",
-          });
           if (mpMode && socket?.connected) {
             socket.emit("portal_escape", { survivalTime: wallTime });
             if (posInterval) clearInterval(posInterval);
-            setTimeout(() => { location.href = `${CFG.WEBRING_URL}?${p}`; }, 300);
-          } else {
-            location.href = `${CFG.WEBRING_URL}?${p}`;
           }
+          showVictoryScreen(wallTime, coresDestroyed, Math.round(getSpeed(diffT) * throttleMult));
         }, 650);
       });
     }, 4200);
@@ -2509,6 +2626,8 @@ function buildThreeApp(container) {
     throttleMult = 1.0;
     boostHeat = 0;
     boostOverheat = false;
+    brakeHeat = 0;
+    brakeOverheat = false;
     lastContactAt = 0; lastCollMs = 0; lastNearMs = 0; nearStreak = 0;
 
     assistMode = false; assistEnd = 0;
@@ -2705,12 +2824,21 @@ function buildThreeApp(container) {
       boostHeat = Math.min(1, boostHeat + CFG.BOOST_HEAT_RATE * rawDt);
       throttleMult = CFG.BOOST_MULT;
       if (boostHeat >= 1) boostOverheat = true;
-    } else if (braking) {
-      boostHeat = Math.max(0, boostHeat - CFG.BOOST_COOL_RATE * rawDt * 0.6);
-      throttleMult = CFG.ANCHOR_MULT;
     } else {
       boostHeat = Math.max(0, boostHeat - CFG.BOOST_COOL_RATE * rawDt);
-      throttleMult = 1.0;
+    }
+
+    if (brakeOverheat) {
+      brakeHeat = Math.max(0, brakeHeat - CFG.BOOST_COOL_RATE * rawDt * 1.3);
+      if (brakeHeat < 0.15) brakeOverheat = false;
+      if (!boostOverheat && !boosting) throttleMult = 1.0;
+    } else if (braking && !boostOverheat) {
+      brakeHeat = Math.min(1, brakeHeat + CFG.BOOST_HEAT_RATE * rawDt);
+      throttleMult = CFG.MIN_THROTTLE;
+      if (brakeHeat >= 1) brakeOverheat = true;
+    } else if (!braking) {
+      brakeHeat = Math.max(0, brakeHeat - CFG.BOOST_COOL_RATE * rawDt);
+      if (!boostOverheat && !boosting) throttleMult = 1.0;
     }
 
     // AFK detection
@@ -2902,7 +3030,17 @@ function buildThreeApp(container) {
 
     if (portalUnlocked && portalSys.group.visible) {
       const portalDistance = Math.max(0, Math.round(shipAnchor.position.distanceTo(portalSys.group.position)));
-      G.portalArrow.textContent = `PORTAL AHEAD ${portalDistance}m`;
+      if (portalDistance <= 100) {
+        G.portalArrow.textContent = '▼ DIVE NOW ▼';
+        G.portalArrow.style.color = '#ff0033';
+        G.portalArrow.style.borderColor = 'rgba(255,0,50,0.9)';
+        G.portalArrow.style.textShadow = '0 0 12px rgba(255,0,50,0.8)';
+      } else {
+        G.portalArrow.textContent = `▼ PORTAL: ${portalDistance}m ▼`;
+        G.portalArrow.style.color = '#00ffff';
+        G.portalArrow.style.borderColor = 'rgba(0,255,255,0.9)';
+        G.portalArrow.style.textShadow = '0 0 12px rgba(0,255,255,0.8)';
+      }
       G.portalArrow.classList.add("is-visible");
       if (portalDistance < 150) {
         G.whiteFlash.style.opacity = `${THREE.MathUtils.mapLinear(THREE.MathUtils.clamp(portalDistance, 20, 150), 150, 20, 0.015, 0.07)}`;
@@ -3015,8 +3153,8 @@ function buildThreeApp(container) {
     syncBanner();
     const mobileHeatFill = document.getElementById("mobile-heat-fill");
     const mobileSpeedTxt = document.getElementById("mobile-speed-text");
-    if (mobileHeatFill) mobileHeatFill.style.width = `${Math.round(boostHeat * 100)}%`;
-    if (mobileSpeedTxt) mobileSpeedTxt.textContent = boostOverheat ? "HOT" : `${Math.round(getSpeed(diffT) * throttleMult)}`;
+    if (mobileHeatFill) mobileHeatFill.style.width = `${Math.round(Math.max(boostHeat, brakeHeat) * 100)}%`;
+    if (mobileSpeedTxt) mobileSpeedTxt.textContent = boostOverheat ? "HOT" : brakeOverheat ? "LOCK" : `${Math.round(getSpeed(diffT) * throttleMult)}`;
 
     // Crosshair lock-on feedback
     const visibleLockTarget = getCursorLockCandidate(camera.position, getAimBaseDirection());
@@ -3556,6 +3694,10 @@ function detectHazards(pAABB, nmAABB, oAABB, ship, rings, walls, firewalls, wind
   }
   if (windmills) for (const o of windmills) {
     if (!o.active) continue;
+    // Z-cull: windmill arms span ~60 units, only check when ship is within range
+    if (Math.abs(ship.position.z - o.group.position.z) > 8) continue;
+    // Force world matrix update so the AABB reflects the current spinner rotation
+    o.spinner.updateWorldMatrix(true, true);
     for (const arm of [o.arm1, o.arm2]) {
       oAABB.setFromObject(arm);
       if (pAABB.intersectsBox(oAABB)) return { collided: true, nearMiss: false };
