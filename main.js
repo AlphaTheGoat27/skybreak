@@ -729,7 +729,7 @@ function startGame() {
       : "WASD · MOUSE AIM · SPACE = SHOOT · SHIFT = BOOST · C = BRAKE · DESTROY AI BOTS";
 
     if ("ontouchstart" in window) {
-      G.shootHint.classList.add("is-visible");
+      G.shootHint?.classList.add("is-visible");
       showMobileTutorial();
     }
 
