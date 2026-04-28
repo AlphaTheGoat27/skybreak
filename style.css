@@ -977,11 +977,18 @@ body {
 
 /* Form */
 .intro-form {
-  width: min(360px, 90vw);
+  width: min(480px, 92vw);
   display: flex;
   flex-direction: column;
   gap: 0.72rem;
   margin-top: 0.5rem;
+}
+
+.intro-form--inline {
+  width: 100%;
+  margin-top: 0.8rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid rgba(0,255,255,0.1);
 }
 
 @media (max-height: 700px) {
@@ -1063,6 +1070,11 @@ body {
   }
 }
 
+/* Multiplayer specific back button positioning */
+#btn-back-mp {
+  margin-bottom: 0.1rem;
+}
+
 @media (max-height: 700px) {
   .back-btn {
     font-size: 0.62rem;
@@ -1122,7 +1134,9 @@ body {
 
 /* Hide footer credits when lobby is shown */
 .intro-screen.lobby-active .creator-credit,
-.intro-screen.lobby-active .github-link {
+.intro-screen.lobby-active .github-link,
+.intro-screen.sub-screen .creator-credit,
+.intro-screen.sub-screen .github-link {
   display: none;
 }
 
@@ -1560,7 +1574,7 @@ body:has(.mp-leaderboard.is-visible) .controls-hud--right {
 .mode-btn--multi .mode-btn-title { color:var(--magenta); }
 .mode-btn--multi:hover { border-color:var(--magenta); box-shadow:var(--glow-magenta); }
 /* ── MP Setup ────────────────────────────────────────────────────── */
-.mp-setup { display:flex; flex-direction:column; gap:1rem; width:min(440px,90vw); }
+.mp-setup { display:flex; flex-direction:column; gap:0.3rem; width:min(640px,92vw); }
 .mp-room-buttons { display:flex; gap:0.8rem; flex-wrap:wrap; justify-content:center; width:100%; }
 .mp-room-buttons .mode-btn { flex:1 1 0; min-width:120px; max-width:200px; padding:1rem 0.8rem; }
 /* Kinetic drift hint in MP setup */

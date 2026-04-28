@@ -760,9 +760,10 @@ if (G.btnSolo) {
   G.btnSolo.addEventListener("click", () => {
     G.modeSelect.style.display = "none";
     G.introHint.style.display = "flex";
-    G.introForm.style.display = "flex";
+    if (G.introForm) G.introForm.style.display = "flex";
     if (G.btnSoloBack) G.btnSoloBack.style.display = "block";
     G.mpSetup.style.display = "none";
+    G.introScreen?.classList.add("sub-screen");
     const touch = "ontouchstart" in window || window.innerWidth < 768;
     if (G.introKeyRow) {
       G.introKeyRow.innerHTML = touch
@@ -776,9 +777,10 @@ if (G.btnSolo) {
 if (G.btnSoloBack) {
   G.btnSoloBack.addEventListener("click", () => {
     G.introHint.style.display = "none";
-    G.introForm.style.display = "none";
+    if (G.introForm) G.introForm.style.display = "none";
     if (G.btnSoloBack) G.btnSoloBack.style.display = "none";
     G.modeSelect.style.display = "flex";
+    G.introScreen?.classList.remove("sub-screen");
     runTypewriter("[SYSTEM_ID] > select mode", G.introLabel);
   });
 }
@@ -786,9 +788,10 @@ if (G.btnMulti) {
   G.btnMulti.addEventListener("click", () => {
     G.modeSelect.style.display = "none";
     G.introHint.style.display = "flex";
-    G.introForm.style.display = "none";
+    if (G.introForm) G.introForm.style.display = "none";
     if (G.btnSoloBack) G.btnSoloBack.style.display = "none";
     G.mpSetup.style.display = "flex";
+    G.introScreen?.classList.add("sub-screen");
     const hintLines = G.introHint?.querySelectorAll(".intro-narrative");
     if (hintLines && hintLines.length >= 4) {
       hintLines[0].textContent = "MULTIPLAYER BREACH PROTOCOL";
@@ -839,8 +842,9 @@ if (G.btnBackMp) {
     socket = null;
     G.mpSetup.style.display = "none";
     G.introHint.style.display = "none";
-    G.introForm.style.display = "none";
+    if (G.introForm) G.introForm.style.display = "none";
     G.modeSelect.style.display = "flex";
+    G.introScreen?.classList.remove("sub-screen");
     runTypewriter("[SYSTEM_ID] > select mode", G.introLabel);
   });
 }
@@ -859,9 +863,10 @@ if (G.btnLobbyCancel) {
     mpMode = false;
     G.mpLobby.style.display = "none";
     document.querySelector('.intro-screen')?.classList.remove('lobby-active');
+    document.querySelector('.intro-screen')?.classList.remove('sub-screen');
     G.mpSetup.style.display = "none";
     G.introHint.style.display = "none";
-    G.introForm.style.display = "none";
+    if (G.introForm) G.introForm.style.display = "none";
     if (G.mpLeaderboard) G.mpLeaderboard.style.display = "none";
     if (G.killFeed) G.killFeed.style.display = "none";
     if (G.respawnOverlay) G.respawnOverlay.style.display = "none";
