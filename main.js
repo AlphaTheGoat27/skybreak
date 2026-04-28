@@ -611,9 +611,9 @@ function showChapterBanner(text, color = "#00ffff", durationMs = 2400) {
 
 function queueOpeningTutorialWaves() {
   clearTimeout(tutorialWaveTimer);
-  showChapterBanner("MOVE WITH WASD OR ARROWS", "#ff4488", 2200);
+  showChapterBanner("MOVE WITH WASD OR ARROWS", "#ff4488", 1500);
   tutorialWaveTimer = setTimeout(() => {
-    showChapterBanner("AIM WITH MOUSE · CLICK TO SHOOT", "#ff4488", 2600);
+    showChapterBanner("AIM WITH MOUSE · CLICK TO SHOOT", "#ff4488", 1500);
   }, 2350);
 }
 
@@ -631,9 +631,9 @@ function showInvertOverlay(durationMs = 800) {
 function queueOneTimeOpeningTutorialAfterChapter() {
   clearTimeout(tutorialWaveTimer);
   tutorialWaveTimer = setTimeout(() => {
-    showChapterBanner("MOVE WITH WASD OR ARROWS", "#ff4488", 2200);
+    showChapterBanner("MOVE WITH WASD OR ARROWS", "#ff4488", 1500);
     tutorialWaveTimer = setTimeout(() => {
-      showChapterBanner("AIM WITH MOUSE · CLICK TO SHOOT", "#ff4488", 2600);
+      showChapterBanner("AIM WITH MOUSE · CLICK TO SHOOT", "#ff4488", 1500);
     }, 2350);
   }, 2350);
 }
@@ -2292,7 +2292,7 @@ function buildThreeApp(container) {
       });
     }
 
-    showChapterBanner("THE EXIT PORTAL IS OPEN\nFLY THROUGH THE WHITE RING AHEAD", "#00ffff", 5000);
+    showChapterBanner("THE EXIT PORTAL IS OPEN\nFLY THROUGH THE WHITE RING AHEAD", "#00ffff", 1500);
     G.hudTimer.classList.add("is-escaping");
     G.hudObjective.textContent = "→ FLY THROUGH THE GLOWING RING";
     updateHUD(coresDestroyed, escapeTimeNeeded);
@@ -2573,7 +2573,7 @@ function buildThreeApp(container) {
     G.flightTip.textContent = "PORTAL BREACH";
     G.flightTip.dataset.mode = "danger";
     G.flightTip.classList.add("is-visible");
-    showChapterBanner("PORTAL BREACH", "#ffffff", 1600);
+    showChapterBanner("PORTAL BREACH", "#ffffff", 1500);
 
     // Camera zoom + shake
     const zoomId = setInterval(() => {
@@ -3622,9 +3622,12 @@ function forceCorridor(walls, playerZ, cores = [], firewalls = []) {
   const offsets = [{ x: 7, y: 3 }, { x: -5, y: -3 }];
   const wallZPositions = [];
 
-  // Clear all existing active walls first so only the 2 forced ones appear
+  // Only clear walls in the zone where forced walls will be placed (300–500 units ahead)
+  // Leave walls far ahead or behind untouched so they don't visibly pop out
+  const CLEAR_ZONE_NEAR = playerZ - 500;
+  const CLEAR_ZONE_FAR  = playerZ - 280;
   for (const o of walls) {
-    if (o.active) {
+    if (o.active && o.group.position.z < CLEAR_ZONE_FAR && o.group.position.z > CLEAR_ZONE_NEAR) {
       o.group.visible = false;
       o.active = false;
     }
@@ -4354,7 +4357,7 @@ class AITroll {
           "another pilot. the exit is locked.",
           "unnamed pilot detected. collapse in progress.",
         ]);
-    showChapterBanner("CHAPTER I: THE AI IS SMUG", this.colors.SMUG, 2200);
+    showChapterBanner("CHAPTER I: THE AI IS SMUG", this.colors.SMUG, 1500);
     if (fromHomePage) {
       queueOneTimeOpeningTutorialAfterChapter();
     }
@@ -4389,7 +4392,7 @@ class AITroll {
       PANICKING: "CHAPTER IV: THE AI IS AFRAID",
       BROKEN: "CHAPTER V: COLLAPSE",
     };
-    if (chapterNames[state]) showChapterBanner(chapterNames[state], this.colors[state] || "#00ffff");
+    if (chapterNames[state]) showChapterBanner(chapterNames[state], this.colors[state] || "#00ffff", 1500);
     this.nextAutoLineAt = atTime + (state === "BROKEN" ? 0.55 : 1.35);
   }
 

@@ -493,10 +493,10 @@ body {
   text-shadow: 0 0 20px currentColor, 0 0 40px rgba(0,255,255,0.4);
   transition: opacity 0.25s ease;
   padding: 1.2rem 2rem;
-  background: rgba(0, 6, 12, 0.82);
-  border-top: 1px solid rgba(0,255,255,0.18);
-  border-bottom: 1px solid rgba(0,255,255,0.18);
-  backdrop-filter: blur(8px);
+  background: rgba(0, 6, 12, 0.3);
+  border-top: 1px solid rgba(0,255,255,0.1);
+  border-bottom: 1px solid rgba(0,255,255,0.1);
+  backdrop-filter: blur(2px);
   white-space: pre-line;
   line-height: 1.8;
 }
