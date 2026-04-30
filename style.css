@@ -1731,3 +1731,216 @@ body:has(.mp-leaderboard.is-visible) .controls-hud--right {
     transform: scale(1.02);
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   READABILITY BOOST
+   Keep the existing neon palette, but lift low-contrast UI text so it
+   stays readable over the dark moving tunnel.
+   ═══════════════════════════════════════════════════════════════════ */
+:root {
+  --cyan-d: #66ffff;
+  --cyan-g: rgba(0, 255, 255, 0.14);
+  --orange: #ff7a22;
+  --red: #ff3f62;
+  --magenta: #ff66ff;
+  --surface: rgba(0, 5, 10, 0.94);
+  --border: rgba(0, 255, 255, 0.48);
+  --border-d: rgba(0, 255, 255, 0.34);
+  --glow-cyan: 0 0 14px rgba(0, 255, 255, 0.8), 0 0 34px rgba(0, 255, 255, 0.36);
+  --glow-red: 0 0 14px rgba(255, 50, 85, 0.8), 0 0 34px rgba(255, 0, 50, 0.38);
+  --glow-magenta: 0 0 14px rgba(255, 80, 255, 0.82), 0 0 34px rgba(255, 0, 255, 0.38);
+}
+
+body {
+  color: #cfffff;
+  text-shadow: 0 0 7px rgba(0, 255, 255, 0.25);
+}
+
+.hud-timer,
+.hud-speed,
+.hud-best,
+.hud-objective,
+.hud-progress,
+.flight-tip,
+.ai-box,
+.mobile-tutorial,
+.crash-text,
+.death-sub,
+.death-cores,
+.death-progress-label,
+.death-ai-line,
+.intro-label,
+.intro-narrative,
+.intro-key span,
+.intro-input,
+.back-btn,
+.creator-credit,
+.github-link,
+.shoot-hint,
+.controls-hud,
+.mode-btn,
+.mode-btn-desc,
+.mp-ctrl-sub,
+.room-display,
+.room-copy-hint,
+.lobby-title,
+.lobby-player-hint,
+.lobby-hint,
+.lobby-share-link,
+.mp-lb-title,
+.mp-lb-row,
+.mp-lb-rank,
+.mp-lb-time,
+.kill-feed-entry,
+.mobile-speed-text {
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.95),
+    0 0 10px rgba(0, 255, 255, 0.34);
+}
+
+.hud-timer,
+.hud-speed,
+.hud-objective,
+.intro-narrative,
+.intro-input,
+.mode-btn,
+.lobby-player-name,
+.mp-lb-row,
+.kill-feed-entry {
+  color: rgba(255, 255, 255, 0.98);
+}
+
+.hud-best,
+.ctrl-alt,
+.mode-btn-desc,
+.mp-ctrl-sub,
+.room-display,
+.lobby-player-hint,
+.lobby-hint,
+.mp-lb-time,
+.creator-credit,
+.github-link a {
+  color: rgba(225, 250, 255, 0.78);
+}
+
+.hud-progress,
+.portal-arrow,
+.hud-bar-label,
+.ai-box,
+.ai-prefix,
+.chapter-banner,
+.intro-label,
+.intro-title,
+.intro-key span,
+.mode-btn-title,
+.room-code-input,
+.room-code-big,
+.room-copy-hint,
+.lobby-title,
+.lobby-share-link,
+.mp-end-rank,
+.mobile-speed-text,
+.controls-hud--left.is-mobile::after {
+  color: #7fffff;
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.95),
+    0 0 12px rgba(0, 255, 255, 0.78),
+    0 0 28px rgba(0, 255, 255, 0.34);
+}
+
+.death-title,
+.death-ai-line,
+.death-ai-line::before,
+.death-btn--quit,
+.crash-text,
+.respawn-text {
+  color: #ff8fa3;
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.95),
+    0 0 16px rgba(255, 50, 85, 0.88),
+    0 0 38px rgba(255, 0, 50, 0.42);
+}
+
+.invert-overlay,
+.lobby-countdown,
+.mp-lb-title,
+.mp-lb-rank,
+.mp-session-timer,
+.mp-end-title {
+  color: #ffff7a;
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.95),
+    0 0 16px rgba(255, 255, 0, 0.9),
+    0 0 38px rgba(255, 210, 0, 0.42);
+}
+
+.mode-btn--multi .mode-btn-title,
+.ai-box[data-state="broken"] {
+  color: #ff8cff;
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.95),
+    0 0 16px rgba(255, 80, 255, 0.88),
+    0 0 38px rgba(255, 0, 255, 0.42);
+}
+
+.ctrl-title,
+.ctrl-key,
+.ctrl-key--brake,
+.mp-ctrl-brake,
+.mobile-throttle-btn--brake {
+  color: #7fffff;
+  border-color: rgba(127, 255, 255, 0.66);
+  text-shadow: 0 0 10px rgba(0, 255, 255, 0.62);
+}
+
+.ctrl-key--boost,
+.mp-ctrl-boost,
+.mobile-throttle-btn--boost {
+  color: #ffe66d;
+  border-color: rgba(255, 230, 109, 0.72);
+  text-shadow: 0 0 10px rgba(255, 210, 0, 0.64);
+}
+
+.hud-timer,
+.hud-speed,
+.hud-objective,
+.hud-progress,
+.flight-tip,
+.ai-box,
+.mobile-tutorial,
+.death-content,
+.intro-hint,
+.intro-input,
+.back-btn,
+.controls-hud,
+.mode-btn,
+.mp-lobby,
+.mp-leaderboard,
+.kill-feed-entry,
+.mp-end-content,
+.mobile-throttle-btn {
+  background-color: rgba(0, 6, 12, 0.88);
+  border-color: rgba(0, 255, 255, 0.46);
+}
+
+.intro-subtitle,
+.game-subtitle,
+.creator-credit,
+.github-link a {
+  color: rgba(170, 255, 255, 0.86);
+}
+
+.intro-input::placeholder {
+  color: rgba(127, 255, 255, 0.74);
+}
+
+.crosshair::before,
+.crosshair::after {
+  background: rgba(127, 255, 255, 0.94);
+  box-shadow: 0 0 10px rgba(0, 255, 255, 0.8);
+}
+
+.crosshair-ring {
+  border-color: rgba(127, 255, 255, 0.72);
+  box-shadow: 0 0 12px rgba(0, 255, 255, 0.44);
+}

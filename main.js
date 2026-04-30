@@ -1670,7 +1670,8 @@ function buildThreeApp(container) {
   let camFOV = 75;
 
   // Spawn state
-  const spawnState = { nextZ: -80, rng: rng32(Date.now() & 0xffffffff) };
+  const initialRunSeed = makeRunSeed();
+  const spawnState = { seed: initialRunSeed, nextZ: -80, rng: rng32(initialRunSeed) };
   let obTargX = 0, obTargY = 0, targShiftT = 0;
   const TARGET_SHIFT = 6;
 
@@ -1987,20 +1988,23 @@ function buildThreeApp(container) {
     if (shared) {
       group.position.set(shared.x, shared.y, shared.z);
     } else if (parent) {
+      const rand = spawnState.rng;
       group.position.copy(parent.mesh.position);
-      group.position.x += (Math.random() - 0.5) * 5;
-      group.position.y += (Math.random() - 0.5) * 5;
-      group.position.z += (Math.random() - 0.5) * 6;
+      group.position.x += (rand() - 0.5) * 5;
+      group.position.y += (rand() - 0.5) * 5;
+      group.position.z += (rand() - 0.5) * 6;
     } else {
       // Formation spawning: Spread the wave out while keeping it readable.
+      const rand = spawnState.rng;
       const count = Math.max(1, waveCount);
-      const waveAngle = ((waveId * 1.5) % (Math.PI * 2)); // Dynamic rotation per wave
-      const angle = (index / count) * Math.PI * 2 + waveAngle + (Math.random() - 0.5) * 0.4;
-      const radius = 11 + Math.random() * 5; // Variation in radius
+      const waveAngle = rand() * Math.PI * 2;
+      const angle = (index / count) * Math.PI * 2 + waveAngle + (rand() - 0.5) * 0.55;
+      const radius = THREE.MathUtils.lerp(8, 16, rand());
+      const zLaneSpacing = 58;
       group.position.set(
         Math.cos(angle) * radius,
-        Math.sin(angle) * radius * 0.75,
-        playerZ - CFG.AI_BOT_SPAWN_DISTANCE - (index * CFG.AI_BOT_WAVE_Z_SPACING) + (Math.random() - 0.5) * 10 // Individual Z-jitter
+        Math.sin(angle) * radius * THREE.MathUtils.lerp(0.55, 0.9, rand()),
+        playerZ - CFG.AI_BOT_SPAWN_DISTANCE - (index * zLaneSpacing) + (rand() - 0.5) * 18
       );
     }
 
@@ -2018,14 +2022,14 @@ function buildThreeApp(container) {
     }
 
     group.scale.setScalar(scale);
-    const coreId = shared?.id || `${waveId}-${index}-${Math.floor(performance.now())}-${Math.floor(Math.random() * 1e6)}`;
+    const coreId = shared?.id || `${spawnState.seed}-${waveId}-${index}-${Math.floor(performance.now())}-${Math.floor(spawnState.rng() * 1e6)}`;
     const speedVal = shared?.speed ?? (() => {
       const tFactor = THREE.MathUtils.clamp(wallTime / 60, 0, 1);
       const base = THREE.MathUtils.lerp(5, 13, tFactor);
-      return base + Math.random() * THREE.MathUtils.lerp(2, 5, tFactor);
+      return base + spawnState.rng() * THREE.MathUtils.lerp(2, 5, tFactor);
     })();
-    const phaseVal = shared?.phase ?? (Math.random() * Math.PI * 2);
-    const rotSpdVal = shared?.rotSpd ?? (2 + Math.random() * 2);
+    const phaseVal = shared?.phase ?? (spawnState.rng() * Math.PI * 2);
+    const rotSpdVal = shared?.rotSpd ?? (2 + spawnState.rng() * 2);
     const mpId = shared?.mpId || (amHost && mpMode ? `core_${waveId}_${index}_${Date.now()}` : null);
     group.userData = {
       health: 1,
@@ -2656,10 +2660,12 @@ function buildThreeApp(container) {
     camera.position.set(0, 8, 15); camLerp.set(0, 8, 15);
 
     // Obstacles
-    spawnState.nextZ = -80;
-    spawnState.rng = rng32(Date.now() & 0xffffffff);
+    spawnState.seed = makeRunSeed();
+    spawnState.rng = rng32(spawnState.seed);
+    spawnState.nextZ = -90 - spawnState.rng() * 130;
     spawnState.burstCount = 0;
-    obTargX = 0; obTargY = 0; targShiftT = 0;
+    coreSpawnTimer = 3 + spawnState.rng() * 2.5;
+    obTargX = 0; obTargY = 0; targShiftT = spawnState.rng() * 1.5;
     deactivateAll(rings, walls, firewalls, windmills);
 
     // Portal
@@ -2867,11 +2873,11 @@ function buildThreeApp(container) {
     // ── OBSTACLE TARGET ────────────────────────────────────────────
     targShiftT -= rawDt;
     if (targShiftT <= 0) {
-      targShiftT = TARGET_SHIFT + Math.random() * 3;
-      const r = diffT < 20 ? 5 : diffT < 40 ? 9 : 12;
-      const a = Math.random() * Math.PI * 2;
-      obTargX = Math.cos(a) * r * (0.4 + Math.random() * 0.6);
-      obTargY = Math.sin(a) * r * 0.55 * (0.4 + Math.random() * 0.6);
+      targShiftT = 3.5 + spawnState.rng() * 5.5;
+      const r = diffT < 20 ? THREE.MathUtils.lerp(3, 7, spawnState.rng()) : diffT < 40 ? THREE.MathUtils.lerp(5, 11, spawnState.rng()) : THREE.MathUtils.lerp(6, 14, spawnState.rng());
+      const a = spawnState.rng() * Math.PI * 2;
+      obTargX = Math.cos(a) * r * (0.35 + spawnState.rng() * 0.65);
+      obTargY = Math.sin(a) * r * 0.55 * (0.35 + spawnState.rng() * 0.65);
     }
 
     // ── SHIP MOVEMENT ──────────────────────────────────────────────
@@ -2969,8 +2975,8 @@ function buildThreeApp(container) {
     // In multiplayer, host is authoritative for core spawns so everyone sees the same map.
     coreSpawnTimer -= rawDt;
     if (!portalUnlocked && coreSpawnTimer <= 0 && (!mpMode || mpIsHost)) {
-      coreSpawnTimer = CFG.AI_BOT_SPAWN_INTERVAL;
-      const spawnCount = THREE.MathUtils.clamp(getWaveSize(wallTime), CFG.AI_BOT_MIN_SPAWN_COUNT, CFG.AI_BOT_MAX_SPAWN_COUNT);
+      coreSpawnTimer = getCoreSpawnDelay(wallTime, spawnState.rng);
+      const spawnCount = THREE.MathUtils.clamp(getWaveSize(wallTime, spawnState.rng), CFG.AI_BOT_MIN_SPAWN_COUNT, CFG.AI_BOT_MAX_SPAWN_COUNT);
       const waveSlots = [];
       for (let i = 0; i < spawnCount; i++) {
         if (cores.length + waveSlots.length >= CFG.MAX_AI_BOTS) break;
@@ -3192,7 +3198,12 @@ function buildThreeApp(container) {
       _mpSpeedMult = speedMult;
       
       if (seed !== null && seed !== undefined) {
-        spawnState.rng = rng32(seed >>> 0);
+        spawnState.seed = seed >>> 0;
+        spawnState.rng = rng32(spawnState.seed);
+        spawnState.nextZ = -90 - spawnState.rng() * 130;
+        spawnState.burstCount = 0;
+        coreSpawnTimer = 3 + spawnState.rng() * 2.5;
+        obTargX = 0; obTargY = 0; targShiftT = spawnState.rng() * 1.5;
       }
       
       shipAnchor.position.set(spawnX, spawnY, 0);
@@ -3253,11 +3264,16 @@ function getDensity(t) {
   return 0.98;
 }
 
-function getWaveSize(wallTime) {
+function getWaveSize(wallTime, rng = Math.random) {
   // Cores ramp up over time — early game is 1 at a time, late game sends 2
   if (wallTime < 30) return 1;
-  if (wallTime < 70) return Math.random() < 0.4 ? 2 : 1;
-  return Math.random() < 0.7 ? 2 : 1;
+  if (wallTime < 70) return rng() < 0.4 ? 2 : 1;
+  return rng() < 0.7 ? 2 : 1;
+}
+
+function getCoreSpawnDelay(wallTime, rng = Math.random) {
+  const base = wallTime < 25 ? 5.6 : wallTime < 70 ? 6.6 : 7.2;
+  return THREE.MathUtils.clamp(base + (rng() - 0.5) * 2.4, 4.4, 8.4);
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -3418,8 +3434,9 @@ function deactivateAll(...pools) {
 }
 
 function spawnObstacles(rings, walls, firewalls, windmills, playerZ, density, state, t, targX, targY, portalSafeZ, wallTime, lastObstacleClearedAt) {
-  const SPAWN_DIST = 380, RECYCLE_BEHIND = 22, Z_SPACING = 220, MAX_ACTIVE = 4;
+  const SPAWN_DIST = 430, RECYCLE_BEHIND = 22, MAX_ACTIVE = 5;
   const gapCfg = getGapCfg(t);
+  const minZSpacing = getMinObstacleSpacing(t);
 
   // Recycle obstacles behind player
   for (const p of [rings, walls, firewalls, windmills]) {
@@ -3444,7 +3461,7 @@ function spawnObstacles(rings, walls, firewalls, windmills, playerZ, density, st
     for (const p of [rings, walls, firewalls, windmills]) {
       if (!p) continue;
       for (const o of p) {
-        if (o.active && Math.abs(o.group.position.z - z) < Z_SPACING) return true;
+        if (o.active && Math.abs(o.group.position.z - z) < minZSpacing) return true;
       }
     }
     return false;
@@ -3461,25 +3478,25 @@ function spawnObstacles(rings, walls, firewalls, windmills, playerZ, density, st
   // Enforce a clear corridor every BURST_SIZE obstacles so cores can spawn.
   // state.burstCount tracks how many obstacles have been placed in the current burst.
   if (state.burstCount === undefined) state.burstCount = 0;
-  const BURST_SIZE = t < 15 ? 1 : t < 45 ? 2 : 3; // obstacles per burst
-  const CLEAR_GAP  = 320; // guaranteed clear units between bursts — cores need 120 clearance at 420 ahead
+  const BURST_SIZE = t < 10 ? 1 : t < 35 ? 2 : t < 80 ? 3 : 4; // obstacles per burst
+  const CLEAR_GAP  = t < 20 ? 250 : 215; // fair shooting windows without long empty stretches
 
   while (state.nextZ > playerZ - SPAWN_DIST) {
     const z = state.nextZ;
 
     // If we've placed a full burst, enforce a clear gap then reset burst counter
     if (state.burstCount >= BURST_SIZE) {
-      state.nextZ -= CLEAR_GAP;
+      state.nextZ -= CLEAR_GAP + state.rng() * 75;
       state.burstCount = 0;
       continue;
     }
 
     const roll = state.rng();
-    if (state.rng() > density) { state.nextZ -= getSpawnGap(t); continue; }
+    if (state.rng() > density) { state.nextZ -= getSpawnGap(t, state.rng); continue; }
 
     // Cap simultaneous active obstacle count
     if (activeObstacleCount >= MAX_ACTIVE) {
-      state.nextZ -= getSpawnGap(t);
+      state.nextZ -= getSpawnGap(t, state.rng);
       continue;
     }
 
@@ -3501,19 +3518,19 @@ function spawnObstacles(rings, walls, firewalls, windmills, playerZ, density, st
 
     // Inter-obstacle Z-spacing: skip if any obstacle exists within threshold
     if (hasObstacleNear(z)) {
-      state.nextZ -= getSpawnGap(t);
+      state.nextZ -= getSpawnGap(t, state.rng);
       continue;
     }
 
     // Windmill-wall separation: skip windmills if wall is within 200 units ahead
     if (type === "windmill" && hasWallWithinRange(z, 200)) {
-      state.nextZ -= getSpawnGap(t);
+      state.nextZ -= getSpawnGap(t, state.rng);
       continue;
     }
 
     // Portal safety: don't block the exit ring
     if (portalSafeZ !== null && Math.abs(z - portalSafeZ) < 260) {
-      state.nextZ -= getSpawnGap(t);
+      state.nextZ -= getSpawnGap(t, state.rng);
       continue;
     }
 
@@ -3579,21 +3596,32 @@ function spawnObstacles(rings, walls, firewalls, windmills, playerZ, density, st
       state.burstCount++;
       // Double-gap after crusher walls for recovery space
       if (isCrusher) {
-        state.nextZ -= getSpawnGap(t) * 2.2;
+        state.nextZ -= getSpawnGap(t, state.rng) * 2.2;
       } else {
-        state.nextZ -= getSpawnGap(t);
+        state.nextZ -= getSpawnGap(t, state.rng);
       }
     } else {
-      state.nextZ -= getSpawnGap(t);
+      state.nextZ -= getSpawnGap(t, state.rng);
     }
   }
   return { lastObstacleClearedAt };
 }
 
-function getSpawnGap(t) {
-  if (t < 10) return 240; if (t < 25) return 230;
-  if (t < 50) return 220; if (t < 80) return 220;
-  if (t < 120) return 220; return 220;
+function getSpawnGap(t, rng = Math.random) {
+  const jitter = rng() * 55;
+  if (t < 10) return 210 + jitter;
+  if (t < 25) return 190 + jitter;
+  if (t < 50) return 172 + jitter;
+  if (t < 80) return 162 + jitter;
+  if (t < 120) return 156 + jitter * 0.9;
+  return 150 + jitter * 0.8;
+}
+
+function getMinObstacleSpacing(t) {
+  if (t < 10) return 205;
+  if (t < 25) return 185;
+  if (t < 50) return 168;
+  return 155;
 }
 
 function getGapCfg(t) {
@@ -4958,4 +4986,11 @@ function randomInsult(name, seconds, cores) {
 function rng32(seed) {
   let t = seed >>> 0;
   return () => { t += 0x6d2b79f5; let r = Math.imul(t ^ (t >>> 15), t | 1); r ^= r + Math.imul(r ^ (r >>> 7), r | 61); return ((r ^ (r >>> 14)) >>> 0) / 4294967296; };
+}
+
+function makeRunSeed() {
+  const now = Date.now() >>> 0;
+  const perf = Math.floor(performance.now() * 1000) >>> 0;
+  const entropy = Math.floor(Math.random() * 0xffffffff) >>> 0;
+  return (now ^ perf ^ entropy) >>> 0;
 }
